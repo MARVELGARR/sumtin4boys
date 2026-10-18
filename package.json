@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern \"convex/_generated/**\""
+    "lint": "eslint . --ignore-pattern \"convex/_generated/**\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/core": "^0.41.1",
