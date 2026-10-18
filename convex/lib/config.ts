@@ -1,0 +1,121 @@
+/**
+ * Central configuration reader.
+ *
+ * ALL environment access goes through this module. Functions import getters
+ * from here instead of touching `env` directly, so there is exactly one place
+ * to read (and document) how the app is configured per deployment.
+ *
+ * Variables are declared in `convex/convex.config.ts`; Convex generates the
+ * typed `env` object.
+ */
+
+import { env } from "../_generated/server";
+import { MIN_PAYOUT_MINOR_DEFAULT } from "./validation";
+
+export type PaymentsDriver = "bachs" | "simulated";
+
+/**
+ * Which payment driver is active.
+ *
+ * - `PAYMENTS_DRIVER=simulated` -> always simulated (useful in dev even when
+ *   sandbox keys exist).
+ * - `PAYMENTS_DRIVER=bachs` -> always Bachs; checkouts fail loudly if
+ *   `BACHS_API_KEY` is missing, which is what you want in production.
+ * - unset -> Bachs when `BACHS_API_KEY` is present, simulated otherwise.
+ */
+export function resolvePaymentsDriver(): PaymentsDriver {
+  if (env.PAYMENTS_DRIVER === "simulated") return "simulated";
+  if (env.PAYMENTS_DRIVER === "bachs") return "bachs";
+  return env.BACHS_API_KEY ? "bachs" : "simulated";
+}
+
+/** Whether checkouts can actually be created right now. */
+export function paymentsConfigured(): boolean {
+  const driver = resolvePaymentsDriver();
+  if (driver === "simulated") return true;
+  return Boolean(env.BACHS_API_KEY);
+}
+
+export function bachsEnvironment(): "sandbox" | "production" {
+  return env.BACHS_ENV ?? "sandbox";
+}
+
+export function bachsApiKey(): string | undefined {
+  return env.BACHS_API_KEY;
+}
+
+export function bachsBaseUrl(): string {
+  return bachsEnvironment() === "production"
+    ? "https://api.bachs.io"
+    : "https://sandbox-api.bachs.io";
+}
+
+export function bachsWebhookSecret(): string | undefined {
+  return env.BACHS_WEBHOOK_SECRET;
+}
+
+/** True once your platform's Bachs `connect` capability is active. */
+export function connectEnabled(): boolean {
+  return env.CONNECT_ENABLED === "true";
+}
+
+/** Platform fee in basis points (500 = 5%). Clamped to a sane range. */
+export function platformFeeBps(): number {
+  const parsed = Number(env.PLATFORM_FEE_BPS ?? "500");
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5000) return 500;
+  return Math.round(parsed);
+}
+
+/** Platform fee for an amount, in minor units (rounded to nearest minor unit). */
+export function platformFeeFor(amountMinor: number): number {
+  return Math.round((amountMinor * platformFeeBps()) / 10_000);
+}
+
+/** Hours a donation stays pending before it becomes payout-available. */
+export function settlementHoldHours(): number {
+  const parsed = Number(env.SETTLEMENT_HOLD_HOURS ?? "24");
+  if (!Number.isFinite(parsed) || parsed < 0) return 24;
+  return parsed;
+}
+
+/** Minimum payout in minor units. */
+export function minPayoutMinor(): number {
+  const parsed = Number(env.MIN_PAYOUT_MINOR ?? "");
+  if (Number.isSafeInteger(parsed) && parsed > 0) return parsed;
+  return MIN_PAYOUT_MINOR_DEFAULT;
+}
+
+/** Public app origin, without a trailing slash. */
+export function appUrl(): string {
+  return (env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+}
+
+/** Lowercased admin email allow-list. */
+export function adminEmails(): string[] {
+  return (env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function resendApiKey(): string | undefined {
+  return env.RESEND_API_KEY;
+}
+
+export function emailFrom(): string | undefined {
+  return env.EMAIL_FROM;
+}
+
+export function supportEmail(): string {
+  return env.SUPPORT_EMAIL ?? env.EMAIL_FROM ?? "no-reply@example.com";
+}
+
+/** This deployment's HTTP actions origin (for printing the webhook URL). */
+export function convexSiteUrl(): string {
+  return env.CONVEX_SITE_URL;
+}
+
+/** Full public webhook URL for this deployment. */
+export function webhookUrl(): string {
+  return `${env.CONVEX_SITE_URL}/bachs/webhook`;
+}

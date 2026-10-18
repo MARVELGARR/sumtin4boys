@@ -2,12 +2,220 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
-// The schema is normally optional, but Convex Auth
-// requires indexes defined on `authTables`.
-// The schema provides more precise TypeScript types.
+/**
+ * Database schema.
+ *
+ * Money convention: every amount in these tables is an integer in MINOR UNITS
+ * of its currency (kobo, cents, ...). Bachs' API speaks decimal strings; the
+ * conversion happens only at the payment-provider boundary via
+ * `convex/lib/money.ts`. See docs/DATA-MODEL.md for the full reference.
+ */
 export default defineSchema({
+  // Convex Auth tables (users, authAccounts, authSessions, ...).
   ...authTables,
-  numbers: defineTable({
-    value: v.number(),
-  }),
+
+  // ---------------------------------------------------------------------------
+  // Creators: one row per user who claimed a public username.
+  // ---------------------------------------------------------------------------
+  creators: defineTable({
+    userId: v.id("users"),
+    /** Public handle, lowercase, unique. Also the page URL: /{username}. */
+    username: v.string(),
+    displayName: v.string(),
+    bio: v.optional(v.string()),
+    avatarStorageId: v.optional(v.id("_storage")),
+    /** Price of one "coffee", in minor units. */
+    coffeePrice: v.number(),
+    /** ISO 4217 currency code this creator collects in. */
+    currency: v.string(),
+    /** Optional fundraising goal, in minor units. */
+    goalAmount: v.optional(v.number()),
+    status: v.union(v.literal("active"), v.literal("suspended")),
+
+    // --- Denormalized balances (minor units), kept in sync by ledger writes.
+    // Recomputable from `ledgerEntries` via the admin tooling.
+    /** Net donations received but not yet past the settlement hold. */
+    balancePending: v.number(),
+    /** Net donations available to request a payout for. */
+    balanceAvailable: v.number(),
+    /** Lifetime amount already paid out. */
+    balancePaidOut: v.number(),
+
+    // --- Lifetime counters (simple totals, adjusted on refunds).
+    totalRaised: v.number(),
+    totalSupporters: v.number(),
+
+    // --- Bachs Connect state (used only when CONNECT_ENABLED=true).
+    sellerAccountId: v.optional(v.string()),
+    onboardingStatus: v.union(
+      v.literal("not_started"),
+      v.literal("pending"),
+      v.literal("enabled"),
+      v.literal("blocked"),
+    ),
+
+    createdAt: v.number(),
+  })
+    .index("by_username", ["username"])
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_sellerAccountId", ["sellerAccountId"]),
+
+  // ---------------------------------------------------------------------------
+  // Donations: one row per checkout attempt (and the money it represents).
+  // ---------------------------------------------------------------------------
+  donations: defineTable({
+    creatorId: v.id("creators"),
+    supporterName: v.string(),
+    supporterEmail: v.string(),
+    message: v.optional(v.string()),
+    /** Supporters can hide their name + message from the public feed. */
+    isPrivate: v.boolean(),
+    quantity: v.number(),
+    /** Gross amount, minor units: coffeePrice * quantity at creation time. */
+    amount: v.number(),
+    /** Platform cut, minor units. */
+    platformFee: v.number(),
+    /** amount - platformFee, minor units. */
+    netAmount: v.number(),
+    currency: v.string(),
+    /** Unique, human-readable id sent to Bachs and shown to the supporter. */
+    reference: v.string(),
+    driver: v.union(v.literal("bachs"), v.literal("simulated")),
+
+    checkoutId: v.optional(v.string()),
+    /** Provider payment (charge) id, once known. */
+    paymentId: v.optional(v.string()),
+
+    status: v.union(
+      // Checkout created; waiting for the supporter to pay.
+      v.literal("pending"),
+      // Payment confirmed. Terminal good state.
+      v.literal("paid"),
+      // Failed/expired/underpaid — NOT final: a later success event can still
+      // flip this to "paid" (see docs/PAYMENTS.md).
+      v.literal("unresolved"),
+      // Refund confirmed by the provider.
+      v.literal("refunded"),
+    ),
+    /** Creator hid the message from the public page. */
+    hidden: v.optional(v.boolean()),
+    /** created_at of the last applied provider event (ms), used to ignore stale events. */
+    lastEventAt: v.optional(v.number()),
+    createdAt: v.number(),
+    paidAt: v.optional(v.number()),
+  })
+    .index("by_reference", ["reference"])
+    .index("by_checkoutId", ["checkoutId"])
+    .index("by_paymentId", ["paymentId"])
+    .index("by_creator", ["creatorId", "createdAt"])
+    .index("by_creator_status", ["creatorId", "status"])
+    .index("by_status_createdAt", ["status", "createdAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Ledger: append-only double-sided entries that make up creator balances.
+  // Invariant: balancePending + balanceAvailable on the creator equals
+  // the sum of all ledger entry amounts, minus nothing — payout reservations
+  // are settled entries that already reduced balanceAvailable.
+  // ---------------------------------------------------------------------------
+  ledgerEntries: defineTable({
+    creatorId: v.id("creators"),
+    type: v.union(
+      v.literal("donation"), // + gross amount of a paid donation
+      v.literal("fee"), // - platform fee
+      v.literal("refund"), // - gross amount of a refunded donation
+      v.literal("fee_reversal"), // + platform fee returned to the creator on refund
+      v.literal("payout"), // - amount reserved at payout request time
+      v.literal("payout_reversal"), // + amount released when a payout fails
+      v.literal("adjustment"), // manual admin correction (+/-)
+    ),
+    /** Signed amount in minor units. */
+    amount: v.number(),
+    currency: v.string(),
+    donationId: v.optional(v.id("donations")),
+    payoutId: v.optional(v.id("payouts")),
+    settlementStatus: v.union(v.literal("pending"), v.literal("settled")),
+    settledAt: v.optional(v.number()),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_creator", ["creatorId", "createdAt"])
+    .index("by_donation", ["donationId"])
+    .index("by_payout", ["payoutId"])
+    .index("by_settlement", ["settlementStatus", "createdAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Payouts: creator withdrawal requests.
+  // ---------------------------------------------------------------------------
+  payouts: defineTable({
+    creatorId: v.id("creators"),
+    amount: v.number(),
+    currency: v.string(),
+    status: v.union(
+      v.literal("requested"),
+      v.literal("processing"),
+      v.literal("paid"),
+      v.literal("failed"),
+    ),
+    /** How the payout is fulfilled: manually by an admin, or via the Bachs API. */
+    method: v.union(v.literal("manual"), v.literal("bachs")),
+    /** External transfer reference recorded when an admin marks it paid. */
+    reference: v.optional(v.string()),
+    /** Bachs payout id (only for automatic payouts — phase 2). */
+    bachsPayoutId: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    requestedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index("by_creator", ["creatorId", "requestedAt"])
+    .index("by_status", ["status", "requestedAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Webhook events: dedupe + audit trail. One row per processed event.
+  // The row is written in the same transaction as the state change, so a
+  // crashed/failed event is automatically eligible for redelivery.
+  // ---------------------------------------------------------------------------
+  webhookEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    source: v.union(v.literal("webhook"), v.literal("reconcile"), v.literal("simulated")),
+    /** What processing decided: processed | duplicate | ignored | unmatched |
+     *  mismatch | stale | already_paid | no_donation | partial_refund. */
+    outcome: v.string(),
+    donationId: v.optional(v.id("donations")),
+    creatorId: v.optional(v.id("creators")),
+    checkoutId: v.optional(v.string()),
+    /** created_at of the provider event (ms). */
+    eventCreatedAt: v.number(),
+    receivedAt: v.number(),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_creator", ["creatorId", "receivedAt"]),
+
+  // ---------------------------------------------------------------------------
+  // API operations: idempotency bookkeeping for writes to the payment
+  // provider. One row per logical operation; retries reuse the same key.
+  // ---------------------------------------------------------------------------
+  apiOperations: defineTable({
+    /** Idempotency-Key sent to Bachs. Unique per logical operation. */
+    key: v.string(),
+    kind: v.string(), // "checkout.create" | "connect.account.create" | ...
+    status: v.union(
+      v.literal("started"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("outcome_unknown"),
+    ),
+    /** Related app object, e.g. a donation id. */
+    refId: v.optional(v.string()),
+    /** Provider object id once known, e.g. a checkout id. */
+    providerId: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    attempts: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_status", ["status", "updatedAt"]),
 });

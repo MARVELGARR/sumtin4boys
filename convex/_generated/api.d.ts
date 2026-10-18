@@ -8,9 +8,29 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as bachs_bachsNode from "../bachs/bachsNode.js";
+import type * as bachs_events from "../bachs/events.js";
+import type * as bachs_payload from "../bachs/payload.js";
+import type * as bachs_provider from "../bachs/provider.js";
+import type * as bachs_reconcile from "../bachs/reconcile.js";
+import type * as bachs_simulated from "../bachs/simulated.js";
+import type * as creators from "../creators.js";
+import type * as crons from "../crons.js";
+import type * as donations from "../donations.js";
+import type * as emails from "../emails.js";
 import type * as http from "../http.js";
-import type * as myFunctions from "../myFunctions.js";
+import type * as ledger from "../ledger.js";
+import type * as lib_config from "../lib/config.js";
+import type * as lib_errors from "../lib/errors.js";
+import type * as lib_guards from "../lib/guards.js";
+import type * as lib_money from "../lib/money.js";
+import type * as lib_validation from "../lib/validation.js";
+import type * as payments from "../payments.js";
+import type * as payouts from "../payouts.js";
+import type * as rateLimit from "../rateLimit.js";
+import type * as sellers from "../sellers.js";
 
 import type {
   ApiFromModules,
@@ -19,9 +39,29 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   auth: typeof auth;
+  "bachs/bachsNode": typeof bachs_bachsNode;
+  "bachs/events": typeof bachs_events;
+  "bachs/payload": typeof bachs_payload;
+  "bachs/provider": typeof bachs_provider;
+  "bachs/reconcile": typeof bachs_reconcile;
+  "bachs/simulated": typeof bachs_simulated;
+  creators: typeof creators;
+  crons: typeof crons;
+  donations: typeof donations;
+  emails: typeof emails;
   http: typeof http;
-  myFunctions: typeof myFunctions;
+  ledger: typeof ledger;
+  "lib/config": typeof lib_config;
+  "lib/errors": typeof lib_errors;
+  "lib/guards": typeof lib_guards;
+  "lib/money": typeof lib_money;
+  "lib/validation": typeof lib_validation;
+  payments: typeof payments;
+  payouts: typeof payouts;
+  rateLimit: typeof rateLimit;
+  sellers: typeof sellers;
 }>;
 
 /**
@@ -50,4 +90,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};

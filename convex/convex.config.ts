@@ -1,0 +1,100 @@
+import { defineApp } from "convex/server";
+import { v } from "convex/values";
+import rateLimiter from "@convex-dev/rate-limiter/convex.config.js";
+
+/**
+ * App-level configuration.
+ *
+ * The `env` block declares every environment variable this backend reads.
+ * Convex generates a typed `env` object in `convex/_generated/server.ts`
+ * from this declaration, so functions never touch `process.env` directly
+ * and a typo in a variable name is caught at compile time.
+ *
+ * Set values per deployment, for example:
+ *
+ *   npx convex env set PAYMENTS_DRIVER simulated
+ *   npx convex env set BACHS_API_KEY sk_sandbox_...
+ *   npx convex env set BACHS_WEBHOOK_SECRET whsec_...
+ *
+ * Every variable is optional: the app degrades gracefully (and loudly) when
+ * payments are not configured yet. See docs/SETUP.md.
+ */
+const app = defineApp({
+  env: {
+    // ---------------------------------------------------------------------
+    // Payments (Bachs)
+    // ---------------------------------------------------------------------
+    /**
+     * Secret API key for the Bachs API.
+     * Sandbox keys start with `sk_sandbox_`, production keys with `sk_live_`.
+     */
+    BACHS_API_KEY: v.optional(v.string()),
+    /**
+     * Which Bachs environment `BACHS_API_KEY` belongs to.
+     * Defaults to "sandbox". Going live is a key swap plus changing this.
+     */
+    BACHS_ENV: v.optional(v.union(v.literal("sandbox"), v.literal("production"))),
+    /**
+     * Signing secret used to verify `X-Bachs-Signature-V2` on incoming
+     * webhooks at `POST /bachs/webhook`.
+     */
+    BACHS_WEBHOOK_SECRET: v.optional(v.string()),
+    /**
+     * Which payment driver to use:
+     * - "bachs": real Bachs API (requires `BACHS_API_KEY`).
+     * - "simulated": a clearly-labelled local fake checkout. No network, no
+     *   money, full webhook/ledger pipeline. Great for local development.
+     * Unset: "bachs" when `BACHS_API_KEY` is present, otherwise "simulated".
+     */
+    PAYMENTS_DRIVER: v.optional(v.union(v.literal("bachs"), v.literal("simulated"))),
+    /**
+     * "true" once your platform's Bachs `connect` capability is active and
+     * creator payouts should run through connected accounts instead of the
+     * platform's own balance. See docs/PAYMENTS.md.
+     */
+    CONNECT_ENABLED: v.optional(v.string()),
+    /** Platform fee in basis points of each donation. Default 500 = 5%. */
+    PLATFORM_FEE_BPS: v.optional(v.string()),
+    /**
+     * How long (in hours) a settled donation stays pending before it becomes
+     * available for payout. Default 24.
+     */
+    SETTLEMENT_HOLD_HOURS: v.optional(v.string()),
+    /**
+     * Minimum payout size in minor units of the creator's currency.
+     * Default 100000 (₦1,000.00).
+     */
+    MIN_PAYOUT_MINOR: v.optional(v.string()),
+
+    // ---------------------------------------------------------------------
+    // App
+    // ---------------------------------------------------------------------
+    /**
+     * Public origin of the Next.js app, used for checkout success/cancel
+     * URLs and links in emails. Defaults to http://localhost:3000.
+     */
+    APP_URL: v.optional(v.string()),
+
+    // ---------------------------------------------------------------------
+    // Email (optional; notifications are skipped, not failed, without a key)
+    // ---------------------------------------------------------------------
+    /** Resend API key. Without it, email notifications are logged and skipped. */
+    RESEND_API_KEY: v.optional(v.string()),
+    /** From address for notification emails, e.g. "anything4boys <hello@example.com>". */
+    EMAIL_FROM: v.optional(v.string()),
+    /** Reply-to / support address shown to creators and supporters. */
+    SUPPORT_EMAIL: v.optional(v.string()),
+
+    // ---------------------------------------------------------------------
+    // Admin
+    // ---------------------------------------------------------------------
+    /** Comma-separated list of emails that can access the `/admin` dashboard. */
+    ADMIN_EMAILS: v.optional(v.string()),
+  },
+});
+
+// Rate limiting for public write paths (uses the @convex-dev/rate-limiter
+// component, mounted below).
+app.use(rateLimiter);
+
+export default app;
