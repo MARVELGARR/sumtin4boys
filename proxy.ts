@@ -5,13 +5,17 @@ import {
 } from "@convex-dev/auth/nextjs/server";
 
 const isSignInPage = createRouteMatcher(["/signin"]);
-const isProtectedRoute = createRouteMatcher(["/", "/server"]);
+// The landing page (`/`) and public creator pages (`/[username]`) are open to
+// everyone — only account areas are gated. Client-side guards (`RequireAuth`,
+// creator guard) back these up so the UI still behaves when a session expires.
+const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/admin(.*)"]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
-  if (isSignInPage(request) && (await convexAuth.isAuthenticated())) {
-    return nextjsMiddlewareRedirect(request, "/");
+  const authenticated = await convexAuth.isAuthenticated();
+  if (isSignInPage(request) && authenticated) {
+    return nextjsMiddlewareRedirect(request, "/dashboard");
   }
-  if (isProtectedRoute(request) && !(await convexAuth.isAuthenticated())) {
+  if (isProtectedRoute(request) && !authenticated) {
     return nextjsMiddlewareRedirect(request, "/signin");
   }
 });
