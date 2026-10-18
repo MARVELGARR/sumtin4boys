@@ -221,7 +221,7 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 - `api.admin.listPayouts` — query `{ status?: "requested"|"processing"|"paid"|"failed" }` → rows `{ _id, creatorUsername, creatorDisplayName, amount, currency, status, method, reference?, failureReason?, requestedAt, processedAt? }` (up to 100 new→old).
 - `api.admin.markPayoutPaid` — mutation `{ payoutId: Id<"payouts">, reference: string }` (bank/transfer reference).
 - `api.admin.markPayoutFailed` — mutation `{ payoutId: Id<"payouts">, reason: string }`.
-- `api.admin.recomputeCreatorBalances` — mutation `{ creatorId: Id<"creators"> }` → `{ balancePending, balanceAvailable, balancePaidOut, entriesScanned, truncated }`.
+- `api.admin.recomputeCreatorBalances` — mutation `{ creatorId: Id<"creators"> }` → `{ pending, available, entriesScanned, truncated }` (recomputes pending/available from the ledger; `paidOut` is historical and untouched).
 - `api.admin.listWebhookEvents` — query `{}` → last 100 events `{ _id, eventId, type, source: "webhook"|"reconcile"|"simulated", outcome, donationId?, creatorId?, checkoutId?, eventCreatedAt, receivedAt }`.
 - `api.admin.listApiOperations` — query `{}` → last 100 provider ops `{ _id, key, kind, status: "started"|"succeeded"|"failed"|"outcome_unknown", refId?, providerId?, errorCode?, errorMessage?, attempts, createdAt, updatedAt }`.
 
