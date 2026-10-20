@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useConvexAuth } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { toast } from "sonner";
+import { CircleAlert, Eye, EyeOff, LogIn, UserPlus } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -21,6 +23,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -60,6 +68,8 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Only redirect visitors who were ALREADY signed in when the page mounted.
@@ -71,9 +81,17 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
     if (isAuthenticated) router.replace("/dashboard");
   }, [isLoading, isAuthenticated, router]);
 
+  function switchFlow(next: Flow) {
+    setFlow(next);
+    setError(null);
+    setPassword("");
+    setShowPassword(false);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    setError(null);
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -83,13 +101,17 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
       if (flow === "signUp") formData.set("name", name.trim());
       await signIn("password", formData);
       router.push("/onboarding");
-    } catch (error) {
+    } catch (caught) {
       // Bad credentials surface as plain errors; app errors (e.g. rate
       // limiting) carry a friendlier backend message.
-      const code = appErrorCode(error);
-      toast.error(
-        code ? appErrorMessage(error) : "Check your email and password.",
-      );
+      const code = appErrorCode(caught);
+      const message = code
+        ? appErrorMessage(caught)
+        : flow === "signUp"
+          ? "We couldn't create your account. Check your details and try again."
+          : "That email and password combination didn't work.";
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -98,8 +120,8 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
   const isSignUp = flow === "signUp";
 
   return (
-    <Card>
-      <CardHeader className="text-center">
+    <Card className="gap-0 overflow-hidden py-0 shadow-xl shadow-primary/5">
+      <CardHeader className="gap-1.5 border-b bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 py-6">
         <CardTitle className="text-2xl font-semibold tracking-tight">
           {isSignUp ? "Create your account" : "Welcome back"}
         </CardTitle>
@@ -109,15 +131,26 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
             : "Sign in to manage your page and track your supporters."}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Tabs value={flow} onValueChange={(value) => setFlow(value as Flow)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signIn">Sign in</TabsTrigger>
-            <TabsTrigger value="signUp">Create account</TabsTrigger>
+
+      <CardContent className="px-6 py-6">
+        <Tabs
+          value={flow}
+          onValueChange={(value) => switchFlow(value as Flow)}
+          className="mb-6"
+        >
+          <TabsList className="grid h-9 w-full grid-cols-2">
+            <TabsTrigger value="signIn">
+              <LogIn className="size-3.5" />
+              Sign in
+            </TabsTrigger>
+            <TabsTrigger value="signUp">
+              <UserPlus className="size-3.5" />
+              Create account
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <form onSubmit={handleSubmit} className="mt-5">
+        <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
             {isSignUp ? (
               <Field>
@@ -132,6 +165,7 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
                   maxLength={DISPLAY_NAME_MAX_LENGTH}
                   required
                   disabled={submitting}
+                  className="h-10"
                 />
                 <FieldDescription>
                   The name your supporters will see.
@@ -151,38 +185,69 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
                 autoComplete="email"
                 required
                 disabled={submitting}
+                className="h-10"
               />
             </Field>
 
             <Field>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-                minLength={8}
-                required
-                disabled={submitting}
-              />
+              <InputGroup className="h-10">
+                <InputGroupInput
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
+                  minLength={8}
+                  required
+                  disabled={submitting}
+                  className="h-full px-3 text-base md:text-sm"
+                />
+                <InputGroupAddon align="inline-end" className="pr-1">
+                  <InputGroupButton
+                    size="icon-sm"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    aria-pressed={showPassword}
+                    disabled={submitting}
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
               {isSignUp ? (
-                <FieldDescription>
-                  At least 8 characters.
-                </FieldDescription>
+                <FieldDescription>At least 8 characters.</FieldDescription>
               ) : null}
             </Field>
+
+            {error ? (
+              <Alert
+                variant="destructive"
+                className="border-destructive/25 bg-destructive/5"
+              >
+                <CircleAlert />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
 
             <Button
               type="submit"
               size="lg"
-              className="w-full"
+              className="mt-1 h-10 w-full text-sm"
               disabled={submitting}
             >
               {submitting ? <Spinner /> : null}
-              {isSignUp ? "Create account" : "Sign in"}
+              {submitting
+                ? isSignUp
+                  ? "Creating account…"
+                  : "Signing in…"
+                : isSignUp
+                  ? "Create account"
+                  : "Sign in"}
             </Button>
           </FieldGroup>
         </form>
@@ -192,8 +257,8 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
             <>
               Already have an account?{" "}
               <Link
-                href="/signin"
-                className="text-foreground underline underline-offset-4 hover:text-primary"
+                href="/signin?flow=signIn"
+                className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
               >
                 Sign in
               </Link>
@@ -203,7 +268,7 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
               New here?{" "}
               <Link
                 href="/signin?flow=signUp"
-                className="text-foreground underline underline-offset-4 hover:text-primary"
+                className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
               >
                 Start my page
               </Link>

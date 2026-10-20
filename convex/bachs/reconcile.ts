@@ -56,9 +56,8 @@ export const reconcilePendingDonations = internalAction({
         classification === "completion" ? "checkout.completed" : "checkout.expired";
       // Deterministic id per (checkout, state) pair: replays dedupe, but a
       // later state change (open -> paid) is a new event and processes.
-      const eventId = `recon_${result.state.checkoutId}_${result.state.status}_${
-        result.state.paymentStatus ?? "none"
-      }`;
+      const eventId = `recon_${result.state.checkoutId}_${result.state.status}_${result.state.paymentStatus ?? "none"
+        }`;
 
       const outcome = await ctx.runMutation(
         internal.bachs.events.processCheckoutEvent,
