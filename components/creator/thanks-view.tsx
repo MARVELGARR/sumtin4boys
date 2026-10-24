@@ -228,9 +228,9 @@ function StatusIcon({
 
 function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right">{value}</dd>
+    <div className="flex items-start justify-between gap-4">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }

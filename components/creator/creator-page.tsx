@@ -73,7 +73,7 @@ export function CreatorPage({
       : Math.min(100, Math.round((creator.totalRaised / goalAmount) * 100));
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
       {/* Profile header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Avatar className="size-16">
@@ -83,7 +83,7 @@ export function CreatorPage({
           <AvatarFallback className="text-xl">{initial}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">
             {creator.displayName}
           </h1>
           <p className="text-sm text-muted-foreground">@{creator.username}</p>
@@ -166,7 +166,7 @@ export function CreatorPageSkeleton() {
         <div className="flex flex-1 flex-col gap-2">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-64" />
+          <Skeleton className="h-4 w-64 max-w-full" />
         </div>
       </div>
       <div className="mt-6 max-w-2xl">

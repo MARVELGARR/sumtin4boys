@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
@@ -22,6 +22,12 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,9 +38,9 @@ export default function RootLayout({
       <html lang="en" className={cn("font-sans", inter.variable, geistMono.variable)}>
         <body className="bg-background text-foreground antialiased">
           <ConvexClientProvider>
-            <div className="flex min-h-screen flex-col">
+            <div className="flex min-h-dvh flex-col overflow-x-clip">
               <SiteHeader />
-              <main className="flex-1">{children}</main>
+              <main className="min-w-0 flex-1">{children}</main>
               <SiteFooter />
             </div>
             <Toaster position="top-center" richColors />

@@ -21,7 +21,7 @@ export function DashboardNav() {
   return (
     <nav
       aria-label="Dashboard"
-      className="flex items-center gap-1 overflow-x-auto border-b border-border pb-2"
+      className="-mx-4 flex items-center gap-1 overflow-x-auto border-b border-border px-4 pb-2 scrollbar-none sm:mx-0 sm:px-0"
     >
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
@@ -31,7 +31,7 @@ export function DashboardNav() {
             href={item.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center rounded-lg px-3 text-sm font-medium transition-colors",
+              "inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-sm font-medium transition-colors sm:h-8",
               active
                 ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",

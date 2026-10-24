@@ -26,14 +26,14 @@ export function HeroClaimInput() {
     <div className="w-full max-w-lg">
       <form
         onSubmit={handleSubmit}
-        className={`relative flex flex-col sm:flex-row items-stretch sm:items-center rounded-2xl border bg-card/90 p-1.5 shadow-xl transition-all duration-200 ${
+        className={`relative flex flex-col items-stretch rounded-2xl border bg-card/90 p-2 shadow-xl transition-all duration-200 sm:flex-row sm:items-center sm:p-1.5 ${
           isFocused
             ? "border-primary ring-2 ring-primary/20 shadow-primary/10"
             : "border-border/70 hover:border-primary/40 shadow-muted/50"
         }`}
       >
-        <div className="flex flex-1 items-center px-3 py-2 sm:py-1 text-sm font-medium">
-          <span className="text-muted-foreground shrink-0 select-none font-mono text-xs sm:text-sm">
+        <div className="flex flex-1 items-center px-2 py-2 text-sm font-medium sm:px-3 sm:py-1">
+          <span className="shrink-0 select-none font-mono text-[11px] text-muted-foreground sm:text-sm">
             anything4boys.com/
           </span>
           <input
@@ -44,7 +44,10 @@ export function HeroClaimInput() {
             onBlur={() => setIsFocused(false)}
             placeholder="yourname"
             maxLength={30}
-            className="w-full min-w-0 bg-transparent pl-1 font-mono text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full min-w-0 bg-transparent pl-1 font-mono text-base text-foreground placeholder:text-muted-foreground/60 focus:outline-none sm:text-sm"
             aria-label="Claim your username"
           />
         </div>

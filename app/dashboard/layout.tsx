@@ -21,16 +21,16 @@ export default function DashboardLayout({
     <RequireAuth>
       <Suspense
         fallback={
-          <div className="mx-auto w-full max-w-6xl px-4 py-10">
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
             <Skeleton className="h-8 w-56" />
             <Skeleton className="mt-6 h-64 w-full" />
           </div>
         }
       >
         <NuqsAdapter>
-          <div className="mx-auto w-full max-w-6xl px-4 py-10">
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
             <DashboardNav />
-            <div className="mt-8">
+            <div className="mt-6 sm:mt-8">
               <CreatorGuard>{children}</CreatorGuard>
             </div>
           </div>

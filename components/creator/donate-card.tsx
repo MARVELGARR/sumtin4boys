@@ -184,7 +184,7 @@ export function DonateCard({
         <form className="flex flex-col gap-5" onSubmit={handleSubmit} noValidate>
           <Field data-invalid={errors.quantity ? true : undefined}>
             <FieldTitle>Bread count</FieldTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -284,7 +284,7 @@ export function DonateCard({
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2.5">
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">
                 {quantity} {quantity === 1 ? "bread" : "breads"}

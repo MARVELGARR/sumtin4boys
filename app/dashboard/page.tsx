@@ -98,7 +98,7 @@ export default function DashboardOverviewPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Total raised"
           value={stats ? formatMoney(stats.totals.raised, stats.currency) : null}
@@ -163,34 +163,60 @@ export default function DashboardOverviewPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Supporter</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Phones: stacked rows instead of a horizontally scrolling table. */}
+              <ul className="flex flex-col divide-y divide-border md:hidden">
                 {recent.results.slice(0, RECENT_SUPPORTERS_PAGE_SIZE).map((donation) => (
-                  <TableRow key={donation._id}>
-                    <TableCell className="font-medium">
-                      {donation.supporterName}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {formatMoney(donation.amount, donation.currency)}
-                    </TableCell>
-                    <TableCell>
+                  <li key={donation._id} className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 truncate font-medium">
+                        {donation.supporterName}
+                      </span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {formatMoney(donation.amount, donation.currency)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
                       <DonationStatusBadge status={donation.status} />
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatDateTime(donation.paidAt ?? donation.createdAt)}
-                    </TableCell>
-                  </TableRow>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(donation.paidAt ?? donation.createdAt)}
+                      </span>
+                    </div>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
+              </ul>
+
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Supporter</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recent.results.slice(0, RECENT_SUPPORTERS_PAGE_SIZE).map((donation) => (
+                      <TableRow key={donation._id}>
+                        <TableCell className="font-medium">
+                          {donation.supporterName}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {formatMoney(donation.amount, donation.currency)}
+                        </TableCell>
+                        <TableCell>
+                          <DonationStatusBadge status={donation.status} />
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatDateTime(donation.paidAt ?? donation.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -246,7 +272,7 @@ function StatCard({
         {value === null ? (
           <Skeleton className="h-7 w-28" />
         ) : (
-          <CardTitle className="text-2xl font-semibold tabular-nums">
+          <CardTitle className="text-xl font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-2xl">
             {value}
           </CardTitle>
         )}

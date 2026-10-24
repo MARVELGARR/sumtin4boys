@@ -34,25 +34,25 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-4">
+        <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Coffee className="size-4" />
           </span>
-          <span>{APP_NAME}</span>
+          <span className="truncate text-sm sm:text-base">{APP_NAME}</span>
         </Link>
 
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
           {isLoading ? (
-            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-9 w-20" />
           ) : isAuthenticated ? (
             <>
-              <Button asChild variant="ghost" size="sm" className="h-8 px-2.5 text-xs sm:text-sm">
+              <Button asChild variant="ghost" size="sm" className="h-9 px-2.5 text-sm sm:h-8">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Account menu">
+                  <Button variant="ghost" size="icon" className="size-9 rounded-full sm:size-8" aria-label="Account menu">
                     <Avatar className="size-8">
                       {creator?.avatarUrl ? (
                         <AvatarImage src={creator.avatarUrl} alt={creator.displayName} />
@@ -96,13 +96,13 @@ export function SiteHeader() {
             </>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" className="h-8 px-2.5 text-xs sm:text-sm font-medium">
+              <Button asChild variant="ghost" size="sm" className="h-9 px-2 text-sm font-medium sm:h-8 sm:px-2.5">
                 <Link href="/signin">Sign in</Link>
               </Button>
-              <Button asChild size="sm" className="h-8 px-3 text-xs sm:text-sm font-medium shadow-sm">
+              <Button asChild size="sm" className="h-9 px-3 text-sm font-medium shadow-sm sm:h-8">
                 <Link href="/signin?flow=signUp">
                   <span className="hidden sm:inline">Start my page</span>
-                  <span className="sm:hidden">Start page</span>
+                  <span className="sm:hidden">Start</span>
                 </Link>
               </Button>
             </>

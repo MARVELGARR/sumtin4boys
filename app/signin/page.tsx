@@ -47,7 +47,7 @@ export default async function SignInPage(props: {
         <div className="animate-float-delayed absolute -bottom-56 right-0 size-[26rem] rounded-full bg-primary/5 blur-3xl" />
       </div>
 
-      <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-14">
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-6 sm:py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:py-14">
         {/* Story panel — desktop only */}
         <aside className="hidden flex-col gap-7 lg:flex">
           <Badge
@@ -196,7 +196,7 @@ function SignInFallback() {
     <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
       <div className="border-b bg-muted/30 px-6 py-6">
         <Skeleton className="h-7 w-44" />
-        <Skeleton className="mt-2 h-4 w-64" />
+        <Skeleton className="mt-2 h-4 w-64 max-w-full" />
       </div>
       <div className="px-6 py-6">
         <Skeleton className="h-9 w-full" />

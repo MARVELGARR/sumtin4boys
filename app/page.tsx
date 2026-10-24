@@ -71,9 +71,9 @@ export default function HomePage() {
           {/* Top category pill */}
           <Badge
             variant="secondary"
-            className="animate-fade-in-up gap-1.5 border-primary/20 bg-primary/10 px-3.5 py-1.5 text-primary text-xs sm:text-sm font-medium shadow-sm"
+            className="animate-fade-in-up h-auto max-w-full gap-1.5 whitespace-normal border-primary/20 bg-primary/10 px-3.5 py-1.5 text-center text-[11px] font-medium leading-snug text-primary shadow-sm sm:text-sm"
           >
-            <Sparkles className="size-3.5 text-primary" />
+            <Sparkles className="size-3.5 shrink-0 text-primary" />
             <span>The tipping platform for African creators &amp; builders</span>
           </Badge>
 

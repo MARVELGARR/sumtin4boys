@@ -32,7 +32,7 @@ export function RequireAuth({
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-4 py-10">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
         <Skeleton className="h-9 w-56" />
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Skeleton className="h-28 w-full" />

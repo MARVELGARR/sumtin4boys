@@ -274,19 +274,19 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
             A square image works best. Up to 2MB.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-4">
+        <CardContent className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
           <Avatar className="size-16">
             {creator.avatarUrl ? (
               <AvatarImage src={creator.avatarUrl} alt={creator.displayName} />
             ) : null}
             <AvatarFallback className="text-lg">{initial}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Input
               type="file"
               accept="image/*"
               aria-label="Upload avatar"
-              className="max-w-64"
+              className="w-full max-w-full sm:max-w-64"
               disabled={uploading || removingAvatar}
               onChange={(event) => void handleAvatarChange(event)}
             />
@@ -422,8 +422,12 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
             </Field>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="justify-end">
-          <Button onClick={() => void handleSave()} disabled={saving}>
+        <CardFooter className="justify-stretch sm:justify-end">
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => void handleSave()}
+            disabled={saving}
+          >
             {saving ? (
               <>
                 <Spinner />

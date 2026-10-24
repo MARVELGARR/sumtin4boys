@@ -126,7 +126,50 @@
   }
   html {
     @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
+}
+
+/* Hide scrollbars on touch-scrollable rows (tabs, filter pills). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Large, finger-friendly range slider thumb (WebKit ignores accent-color
+   once the native appearance is removed). */
+.range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--muted);
+}
+
+.range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 9999px;
+  border: 2px solid var(--background);
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  cursor: pointer;
+}
+
+.range-input::-moz-range-thumb {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 9999px;
+  border: 2px solid var(--background);
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  cursor: pointer;
 }
 
 /* ── Landing page animations ───────────────────────────────── */
@@ -201,4 +244,15 @@
 @keyframes gradient-shift {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
+}
+
+/* Respect the OS "reduce motion" setting (also saves battery on phones). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-float-delayed,
+  .animate-fade-in-up,
+  .animate-bounce-slow,
+  .hero-gradient-text {
+    animation: none !important;
+  }
 }

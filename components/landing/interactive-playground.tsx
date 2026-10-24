@@ -137,7 +137,7 @@ export function InteractivePlayground() {
           <button
             type="button"
             onClick={() => setActiveTab("supporter")}
-            className={`flex-1 rounded-lg py-2 text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all sm:text-sm ${
               activeTab === "supporter"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -148,7 +148,7 @@ export function InteractivePlayground() {
           <button
             type="button"
             onClick={() => setActiveTab("creator")}
-            className={`flex-1 rounded-lg py-2 text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all sm:text-sm ${
               activeTab === "creator"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -171,8 +171,8 @@ export function InteractivePlayground() {
                   <div className="flex size-14 items-center justify-center rounded-2xl bg-primary font-bold text-2xl text-primary-foreground shadow-md shadow-primary/20">
                     👨🏾‍💻
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-bold">Kolawole</h3>
                       <Badge variant="outline" className="text-[11px] font-normal border-primary/30 text-primary">
                         Creator
@@ -208,7 +208,7 @@ export function InteractivePlayground() {
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Choose bread amount
                   </label>
-                  <div className="mt-2.5 grid grid-cols-4 gap-2">
+                  <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
                       { count: 1, label: "1 Bread", price: "₦1,000", emoji: "🍞" },
                       { count: 3, label: "3 Breads", price: "₦3,000", emoji: "🥖" },
@@ -244,7 +244,7 @@ export function InteractivePlayground() {
                         key={msg}
                         type="button"
                         onClick={() => setSupporterMessage(msg)}
-                        className={`rounded-full px-3 py-1 text-xs transition-colors border ${
+                        className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                           supporterMessage === msg
                             ? "border-primary bg-primary text-primary-foreground font-medium"
                             : "border-border/70 bg-muted/40 hover:bg-muted text-muted-foreground"
@@ -265,7 +265,7 @@ export function InteractivePlayground() {
                     value={supporterMessage}
                     onChange={(e) => setSupporterMessage(e.target.value)}
                     placeholder="Say something nice…"
-                    className="h-10 text-sm"
+                    className="h-10 text-base sm:text-sm"
                     maxLength={140}
                   />
                 </div>
@@ -278,7 +278,7 @@ export function InteractivePlayground() {
                       value={supporterName}
                       onChange={(e) => setSupporterName(e.target.value)}
                       placeholder="e.g. Tunde"
-                      className="h-9 text-sm"
+                      className="h-10 text-base sm:text-sm"
                       maxLength={40}
                     />
                   </div>
@@ -288,7 +288,7 @@ export function InteractivePlayground() {
                       id="private-check"
                       checked={isPrivate}
                       onChange={(e) => setIsPrivate(e.target.checked)}
-                      className="size-4 rounded border-border accent-primary cursor-pointer"
+                      className="size-5 rounded border-border accent-primary cursor-pointer"
                     />
                     <label htmlFor="private-check" className="text-xs text-muted-foreground cursor-pointer select-none">
                       Keep message private
@@ -367,17 +367,17 @@ export function InteractivePlayground() {
           <div className="lg:col-span-7">
             <Card className="overflow-hidden border-border/80 bg-card shadow-xl shadow-primary/5">
               <CardHeader className="bg-gradient-to-r from-primary/15 via-primary/5 to-transparent border-b border-border/60 pb-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="size-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
                       🍞
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <CardTitle className="text-base sm:text-lg">Kolawole&apos;s Creator Dashboard</CardTitle>
                       <CardDescription className="text-xs">Live overview &amp; balances</CardDescription>
                     </div>
                   </div>
-                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-xs">
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-600">
                     ● Active &amp; Receiving
                   </Badge>
                 </div>

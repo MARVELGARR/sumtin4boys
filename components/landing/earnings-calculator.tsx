@@ -54,10 +54,10 @@ export function EarningsCalculator() {
         </div>
 
         <Card className="mx-auto max-w-4xl overflow-hidden border-border/80 bg-card shadow-xl shadow-primary/5">
-          <CardContent className="p-6 sm:p-10">
+          <CardContent className="p-5 sm:p-10">
             <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
               {/* Controls Column */}
-              <div className="lg:col-span-7 space-y-6">
+              <div className="space-y-6 lg:col-span-7">
                 {/* Supporters Slider */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -75,7 +75,7 @@ export function EarningsCalculator() {
                     step="5"
                     value={supporters}
                     onChange={(e) => setSupporters(Number(e.target.value))}
-                    className="w-full h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                    className="range-input w-full cursor-pointer"
                     aria-label="Supporter count slider"
                   />
                   <div className="flex justify-between text-[11px] text-muted-foreground mt-1.5">

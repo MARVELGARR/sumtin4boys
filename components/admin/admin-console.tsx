@@ -70,7 +70,7 @@ function AdminTabs() {
         void setTab(value as AdminTab);
       }}
     >
-      <TabsList className="w-fit">
+      <TabsList className="h-9 w-full justify-stretch sm:h-8 sm:w-fit">
         <TabsTrigger value="creators">Creators</TabsTrigger>
         <TabsTrigger value="payouts">Payouts</TabsTrigger>
         <TabsTrigger value="events">Events</TabsTrigger>

@@ -118,12 +118,14 @@ export function PayoutRequestForm({
               value={amountInput}
               aria-invalid={Boolean(error)}
               disabled={disabled}
+              className="h-10"
               onChange={(event) => setAmountInput(event.target.value)}
             />
             <Button
               type="button"
               variant="ghost"
               size="sm"
+              className="h-10 shrink-0"
               disabled={disabled || available <= 0}
               onClick={() => {
                 setAmountInput(fromMinorUnits(available, currency));
@@ -153,6 +155,7 @@ export function PayoutRequestForm({
 
         <div>
           <Button
+            className="w-full sm:w-auto"
             onClick={handleOpenConfirm}
             disabled={disabled || amountInput.trim() === ""}
           >

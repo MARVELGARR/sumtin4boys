@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type SVGProps,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConvexAuth } from "convex/react";
@@ -71,6 +77,7 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Only redirect visitors who were ALREADY signed in when the page mounted.
   // After a successful sign-in we deliberately go to /onboarding instead.
@@ -117,11 +124,29 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
     }
   }
 
+  async function handleGoogle() {
+    if (submitting || googleLoading) return;
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      // Convex Auth redirects the browser to Google and back to SITE_URL +
+      // `/onboarding`. Existing creators are bounced to /dashboard there.
+      const result = await signIn("google", { redirectTo: "/onboarding" });
+      if (!result.redirect) router.push("/onboarding");
+    } catch {
+      const message =
+        "We couldn't start Google sign-in. Please try again in a moment.";
+      setError(message);
+      toast.error(message);
+      setGoogleLoading(false);
+    }
+  }
+
   const isSignUp = flow === "signUp";
 
   return (
     <Card className="gap-0 overflow-hidden py-0 shadow-xl shadow-primary/5">
-      <CardHeader className="gap-1.5 border-b bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-6 py-6">
+      <CardHeader className="gap-1.5 border-b bg-gradient-to-br from-primary/10 via-primary/5 to-transparent px-5 py-5 sm:px-6 sm:py-6">
         <CardTitle className="text-2xl font-semibold tracking-tight">
           {isSignUp ? "Create your account" : "Welcome back"}
         </CardTitle>
@@ -132,7 +157,7 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="px-6 py-6">
+      <CardContent className="px-5 py-5 sm:px-6 sm:py-6">
         <Tabs
           value={flow}
           onValueChange={(value) => switchFlow(value as Flow)}
@@ -149,6 +174,26 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="h-11 w-full gap-2.5 text-sm"
+          onClick={handleGoogle}
+          disabled={submitting || googleLoading}
+        >
+          {googleLoading ? <Spinner /> : <GoogleIcon className="size-4" />}
+          {googleLoading ? "Redirecting…" : "Continue with Google"}
+        </Button>
+
+        <div className="my-5 flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            or use email
+          </span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
 
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4">
@@ -237,7 +282,7 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
             <Button
               type="submit"
               size="lg"
-              className="mt-1 h-10 w-full text-sm"
+              className="mt-1 h-11 w-full text-sm"
               disabled={submitting}
             >
               {submitting ? <Spinner /> : null}
@@ -277,5 +322,29 @@ export function SignInForm({ initialFlow }: { initialFlow: Flow }) {
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+/** Official four-colour Google "G", inlined so there is no extra asset. */
+function GoogleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden focusable="false" {...props}>
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.54-5.17 3.54-8.87Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.28A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.28V6.63H1.29A12 12 0 0 0 0 12c0 1.94.46 3.77 1.29 5.37l3.98-3.09Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.29 6.63l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75Z"
+      />
+    </svg>
   );
 }

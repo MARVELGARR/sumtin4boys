@@ -100,7 +100,7 @@ export function UseCasesShowcase() {
         </p>
 
         {/* Scrollable / Responsive Category Pills */}
-        <div className="mt-4 flex w-full max-w-4xl items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="-mx-4 mt-4 flex w-full max-w-4xl items-center justify-start gap-2 overflow-x-auto px-4 pb-2 scrollbar-none sm:mx-0 sm:justify-center sm:px-0">
           {USE_CASES.map((uc) => {
             const isSelected = uc.id === selectedId;
             const PillIcon = uc.icon;
@@ -125,18 +125,18 @@ export function UseCasesShowcase() {
 
       {/* Featured Persona Card */}
       <Card className="overflow-hidden border-border/80 bg-card shadow-xl shadow-primary/5">
-        <CardContent className="p-6 sm:p-8">
+        <CardContent className="p-5 sm:p-8">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
-            <div className="lg:col-span-8 space-y-4">
+            <div className="space-y-4 lg:col-span-8">
               <div className="flex items-center gap-3">
-                <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-2xl">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-2xl">
                   {activeCase.avatar}
                 </span>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-lg font-bold text-foreground">
                     {activeCase.exampleName}
                   </h3>
-                  <p className="text-xs text-muted-foreground font-mono">
+                  <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">
                     {activeCase.handle} · {activeCase.role}
                   </p>
                 </div>

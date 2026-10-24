@@ -105,7 +105,7 @@ function BalanceCards({ balances }: { balances: Balances }) {
 
   return (
     <div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         {cards.map((card) => (
           <Card key={card.label} size="sm">
             <CardHeader>
@@ -251,51 +251,86 @@ function PayoutHistory() {
           </Empty>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Details</TableHead>
-                  <TableHead className="text-right">Requested</TableHead>
-                  <TableHead className="text-right">Processed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {history.results.map((payout) => (
-                  <TableRow key={payout._id}>
-                    <TableCell className="text-right font-medium tabular-nums">
+            {/* Phones: cards instead of a horizontally scrolling table. */}
+            <ul className="flex flex-col gap-3 md:hidden">
+              {history.results.map((payout) => (
+                <li
+                  key={payout._id}
+                  className="rounded-xl border border-border/70 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="font-medium tabular-nums">
                       {formatMoney(payout.amount, payout.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <PayoutStatusBadge status={payout.status} />
-                    </TableCell>
-                    <TableCell className="max-w-[18rem] whitespace-normal text-muted-foreground">
-                      {payout.failureReason ? (
-                        payout.failureReason
-                      ) : payout.reference ? (
-                        <span>
-                          Ref:{" "}
-                          <span className="font-mono text-xs">
-                            {payout.reference}
-                          </span>
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatDateTime(payout.requestedAt)}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {payout.processedAt
-                        ? formatDateTime(payout.processedAt)
-                        : "—"}
-                    </TableCell>
+                    </span>
+                    <PayoutStatusBadge status={payout.status} />
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Requested {formatDateTime(payout.requestedAt)}
+                    {payout.processedAt
+                      ? ` · Processed ${formatDateTime(payout.processedAt)}`
+                      : null}
+                  </p>
+                  {payout.failureReason ? (
+                    <p className="mt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                      {payout.failureReason}
+                    </p>
+                  ) : payout.reference ? (
+                    <p className="mt-1.5 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                      Ref:{" "}
+                      <span className="font-mono">{payout.reference}</span>
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead className="text-right">Requested</TableHead>
+                    <TableHead className="text-right">Processed</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {history.results.map((payout) => (
+                    <TableRow key={payout._id}>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatMoney(payout.amount, payout.currency)}
+                      </TableCell>
+                      <TableCell>
+                        <PayoutStatusBadge status={payout.status} />
+                      </TableCell>
+                      <TableCell className="max-w-[18rem] whitespace-normal text-muted-foreground">
+                        {payout.failureReason ? (
+                          payout.failureReason
+                        ) : payout.reference ? (
+                          <span>
+                            Ref:{" "}
+                            <span className="font-mono text-xs">
+                              {payout.reference}
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {formatDateTime(payout.requestedAt)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {payout.processedAt
+                          ? formatDateTime(payout.processedAt)
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
             <div className="mt-4 flex justify-center">
               {history.status === "CanLoadMore" ? (

@@ -93,7 +93,7 @@ export function CreatorsTable() {
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="-mx-4 overflow-hidden border-y sm:mx-0 sm:rounded-xl sm:border">
       <Table>
         <TableHeader>
           <TableRow>

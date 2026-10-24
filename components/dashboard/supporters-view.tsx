@@ -115,7 +115,7 @@ export function SupportersView() {
           void setStatus(value as StatusFilter);
         }}
       >
-        <TabsList className="w-fit overflow-x-auto">
+        <TabsList className="h-9 w-full max-w-full justify-start overflow-x-auto scrollbar-none sm:h-8 sm:w-fit">
           {STATUS_FILTERS.map((filter) => (
             <TabsTrigger key={filter} value={filter}>
               {countLabel(filter)}
@@ -152,69 +152,117 @@ export function SupportersView() {
             </Empty>
           ) : (
             <>
-              <TooltipProvider>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Supporter</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead className="text-right">Coffees</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {list.results.map((donation) => (
-                      <TableRow key={donation._id}>
-                        <TableCell className="whitespace-normal">
-                          <div className="font-medium">{donation.supporterName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {donation.supporterEmail}
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-[18rem] whitespace-normal">
-                          {donation.message ? (
-                            donation.message.length > MESSAGE_PREVIEW_LENGTH ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-block max-w-full cursor-default align-bottom">
-                                    {donation.message.slice(0, MESSAGE_PREVIEW_LENGTH)}…
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs whitespace-normal">
-                                  {donation.message}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : (
-                              <span>{donation.message}</span>
-                            )
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {donation.quantity}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="font-medium tabular-nums">
-                            {formatMoney(donation.amount, donation.currency)}
-                          </div>
-                          <div className="text-xs text-muted-foreground tabular-nums">
-                            net {formatMoney(donation.netAmount, donation.currency)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <DonationStatusBadge status={donation.status} />
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatDateTime(donation.paidAt ?? donation.createdAt)}
-                        </TableCell>
+              {/* Phones: cards instead of a horizontally scrolling table. */}
+              <ul className="flex flex-col gap-3 md:hidden">
+                {list.results.map((donation) => (
+                  <li
+                    key={donation._id}
+                    className="rounded-xl border border-border/70 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {donation.supporterName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {donation.supporterEmail}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-medium tabular-nums">
+                          {formatMoney(donation.amount, donation.currency)}
+                        </p>
+                        <p className="text-xs tabular-nums text-muted-foreground">
+                          net {formatMoney(donation.netAmount, donation.currency)}
+                        </p>
+                      </div>
+                    </div>
+                    {donation.message ? (
+                      <p className="mt-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                        {donation.message}
+                      </p>
+                    ) : null}
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <DonationStatusBadge status={donation.status} />
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {donation.quantity}{" "}
+                          {donation.quantity === 1 ? "bread" : "breads"}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(donation.paidAt ?? donation.createdAt)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden md:block">
+                <TooltipProvider>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Supporter</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead className="text-right">Coffees</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TooltipProvider>
+                    </TableHeader>
+                    <TableBody>
+                      {list.results.map((donation) => (
+                        <TableRow key={donation._id}>
+                          <TableCell className="whitespace-normal">
+                            <div className="font-medium">{donation.supporterName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {donation.supporterEmail}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-[18rem] whitespace-normal">
+                            {donation.message ? (
+                              donation.message.length > MESSAGE_PREVIEW_LENGTH ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block max-w-full cursor-default align-bottom">
+                                      {donation.message.slice(0, MESSAGE_PREVIEW_LENGTH)}…
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs whitespace-normal">
+                                    {donation.message}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span>{donation.message}</span>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {donation.quantity}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="font-medium tabular-nums">
+                              {formatMoney(donation.amount, donation.currency)}
+                            </div>
+                            <div className="text-xs text-muted-foreground tabular-nums">
+                              net {formatMoney(donation.netAmount, donation.currency)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <DonationStatusBadge status={donation.status} />
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatDateTime(donation.paidAt ?? donation.createdAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TooltipProvider>
+              </div>
 
               <div className="mt-4 flex justify-center">
                 {list.status === "CanLoadMore" ? (
@@ -244,7 +292,7 @@ export function SupportersViewSkeleton() {
   return (
     <div>
       <Skeleton className="h-8 w-48" />
-      <Skeleton className="mt-3 h-8 w-96" />
+      <Skeleton className="mt-3 h-8 w-full max-w-96" />
       <Skeleton className="mt-6 h-64 w-full" />
     </div>
   );

@@ -180,7 +180,7 @@ function OnboardingFlowInner() {
   const normalized = normalizeUsername(trimmed);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 lg:py-14">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10 lg:py-14">
       <div className="grid gap-8 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-12">
         <WizardRail step={step} />
 
@@ -715,7 +715,7 @@ function ProfileStep({
             type="submit"
             form="onboarding-profile-form"
             size="lg"
-            className="h-10"
+            className="h-11 w-full sm:h-10 sm:w-auto"
             disabled={saving}
           >
             {saving ? <Spinner /> : null}
@@ -950,7 +950,7 @@ function StepSkeleton() {
     <Card className="gap-0 overflow-hidden py-0">
       <div className="border-b px-6 py-5">
         <Skeleton className="h-6 w-40" />
-        <Skeleton className="mt-2 h-4 w-64" />
+        <Skeleton className="mt-2 h-4 w-64 max-w-full" />
       </div>
       <div className="flex flex-col gap-4 px-6 py-6">
         <Skeleton className="h-10 w-full" />
@@ -963,7 +963,7 @@ function StepSkeleton() {
 
 function OnboardingSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 lg:py-14">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-10 lg:py-14">
       <div className="grid gap-8 lg:grid-cols-[270px_minmax(0,1fr)] lg:gap-12">
         <div className="hidden flex-col gap-3 lg:flex">
           <Skeleton className="h-5 w-28" />
