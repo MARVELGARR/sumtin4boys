@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, query } from "./_generated/server";
-import { appUrl, connectEnabled, paymentsConfigured, platformFeeFor, resolvePaymentsDriver } from "./lib/config";
+import { appUrl, connectEnabled, isPubliclyReachableUrl, paymentsConfigured, platformFeeFor, resolvePaymentsDriver } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
 import {
@@ -131,6 +131,16 @@ export const startCheckout = internalMutation({
       throw appError(
         "payments_unavailable",
         "Payments are not configured on this deployment yet. Add Bachs keys to accept support.",
+      );
+    }
+
+    // Bachs refuses checkout sessions whose redirect URLs are not public, so
+    // catch the misconfiguration here with an actionable message (and before a
+    // donation row or an apiOperation is created).
+    if (resolvePaymentsDriver() === "bachs" && !isPubliclyReachableUrl(appUrl())) {
+      throw appError(
+        "payments_unavailable",
+        "Payments need a public APP_URL: Bachs rejects localhost redirect URLs. Point APP_URL at a public HTTPS URL (for example an ngrok or localtunnel URL) and try again.",
       );
     }
 

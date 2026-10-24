@@ -8,7 +8,7 @@
 
 ## 1. Product Summary
 
-Creators get a public page (`/[username]`) where supporters can buy them "coffees" (one-time support) with an optional message. Creators see supporters and earnings in a dashboard and receive payouts. Later phases add memberships (monthly tiers), goals, and embeddable widgets.
+Creators get a public page (`/[username]`) where supporters can tear them "bread" (one-time support) with an optional message. Creators see supporters and earnings in a dashboard and receive payouts. Later phases add memberships (monthly tiers), goals, and embeddable widgets.
 
 **Primary users**
 - **Supporter**: anonymous or lightly identified, pays in a few clicks.

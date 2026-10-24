@@ -90,6 +90,41 @@ export function appUrl(): string {
   return (env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 }
 
+/**
+ * Whether a URL can be used as a payment-provider redirect target.
+ *
+ * Bachs rejects loopback/private hosts with
+ * `VALIDATION_ERROR: success_url must be a publicly accessible URL
+ * (localhost is not allowed)`, so `createCheckout` checks this up front instead
+ * of failing with an opaque provider error.
+ */
+export function isPubliclyReachableUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+    return false;
+  }
+  if (host === "::1" || host === "0.0.0.0") return false;
+
+  // IPv4 loopback, private, and link-local ranges.
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (a === 0 || a === 10 || a === 127) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 169 && b === 254) return false;
+  }
+  return true;
+}
+
 /** Lowercased admin email allow-list. */
 export function adminEmails(): string[] {
   return (env.ADMIN_EMAILS ?? "")

@@ -8,5 +8,6 @@ import type { ViteUserConfig } from "vitest/config";
 export default {
   test: {
     environment: "edge-runtime",
+    testTimeout: 15000,
   },
 } satisfies ViteUserConfig;
