@@ -105,9 +105,9 @@ export function normalizeUsername(raw: string): string {
 export type UsernameCheck =
   | { ok: true; username: string }
   | {
-      ok: false;
-      reason: "too_short" | "too_long" | "invalid_characters" | "reserved";
-    };
+    ok: false;
+    reason: "too_short" | "too_long" | "invalid_characters" | "reserved";
+  };
 
 /**
  * Format-level check only (length, characters, reserved list). Uniqueness is

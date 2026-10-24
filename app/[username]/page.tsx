@@ -27,7 +27,7 @@ export async function generateMetadata({
 
   const description =
     creator.bio?.trim() ||
-    `Support ${creator.displayName} on ${APP_NAME} — buy them a coffee.`;
+    `Support ${creator.displayName} on ${APP_NAME} — tear them bread.`;
 
   return {
     title: `${creator.displayName} (@${creator.username})`,

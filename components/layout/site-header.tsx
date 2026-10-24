@@ -42,22 +42,22 @@ export function SiteHeader() {
           <span>{APP_NAME}</span>
         </Link>
 
-        <nav className="flex items-center gap-1.5">
+        <nav className="flex items-center gap-1 sm:gap-2">
           {isLoading ? (
             <Skeleton className="h-8 w-20" />
           ) : isAuthenticated ? (
             <>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2.5 text-xs sm:text-sm">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account menu">
+                  <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Account menu">
                     <Avatar className="size-8">
                       {creator?.avatarUrl ? (
                         <AvatarImage src={creator.avatarUrl} alt={creator.displayName} />
                       ) : null}
-                      <AvatarFallback>{initial}</AvatarFallback>
+                      <AvatarFallback className="text-xs">{initial}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -96,11 +96,14 @@ export function SiteHeader() {
             </>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" className="h-8 px-2.5 text-xs sm:text-sm font-medium">
                 <Link href="/signin">Sign in</Link>
               </Button>
-              <Button asChild size="sm">
-                <Link href="/signin?flow=signUp">Start my page</Link>
+              <Button asChild size="sm" className="h-8 px-3 text-xs sm:text-sm font-medium shadow-sm">
+                <Link href="/signin?flow=signUp">
+                  <span className="hidden sm:inline">Start my page</span>
+                  <span className="sm:hidden">Start page</span>
+                </Link>
               </Button>
             </>
           )}

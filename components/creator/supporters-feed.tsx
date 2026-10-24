@@ -27,13 +27,13 @@ export function SupportersFeed({
       <CardHeader>
         <CardTitle>Recent supporters</CardTitle>
         <CardDescription>
-          Coffee messages for {displayName}.
+          Messages from supporters for {displayName}.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {donations.length === 0 ? (
           <Empty className="p-6">
-            <EmptyTitle>No coffees yet — be the first.</EmptyTitle>
+            <EmptyTitle>No bread torn yet — be the first.</EmptyTitle>
           </Empty>
         ) : (
           <ul className="divide-y divide-border">
@@ -73,7 +73,7 @@ function SupporterRow({ donation }: { donation: PublicDonation }) {
             {formatMoney(donation.amount, donation.currency)}
           </span>{" "}
           · {donation.quantity}{" "}
-          {donation.quantity === 1 ? "coffee" : "coffees"}
+          {donation.quantity === 1 ? "bread" : "breads"}
         </p>
         {donation.message ? (
           <p className="mt-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">

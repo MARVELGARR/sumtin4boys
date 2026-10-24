@@ -64,9 +64,9 @@ export default async function SignInPage(props: {
               <span className="hero-gradient-text">just likes.</span>
             </h1>
             <p className="mt-4 max-w-lg text-base leading-relaxed text-muted-foreground">
-              Give your fans a simple way to say thank you — one coffee, one
-              message, one link in your bio. You keep making things; we handle
-              the rest.
+              Give your fans a simple way to say thank you — tear small bread,
+              leave a message, share one link in your bio. You keep making
+              things; we handle the rest.
             </p>
           </div>
 
@@ -99,7 +99,7 @@ export default async function SignInPage(props: {
             </Badge>
             <h1 className="mt-3 text-3xl font-bold tracking-tight text-balance">
               Your page. Your people.{" "}
-              <span className="text-primary">Your coffee.</span>
+              <span className="text-primary">Your bread.</span>
             </h1>
           </div>
 
@@ -142,19 +142,19 @@ function CreatorPreview() {
               </p>
             </div>
             <Badge variant="secondary" className="gap-1 whitespace-nowrap">
-              <Coffee className="size-3" />
-              12 coffees
+              <span>🍞</span>
+              12 breads
             </Badge>
           </div>
 
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            “Keep making the good stuff. Here&apos;s a coffee from me.”
+            “Keep making the good stuff. Here&apos;s small bread from me 🍞”
           </p>
 
           <div className="mt-4 flex items-center justify-between rounded-xl border bg-background px-3.5 py-2.5">
             <span className="flex items-center gap-2 text-sm font-medium">
-              <Coffee className="size-4 text-primary" />
-              Buy a coffee
+              <span>🍞</span>
+              Tear small bread
             </span>
             <span className="text-sm font-semibold tabular-nums">₦1,000</span>
           </div>
@@ -183,7 +183,7 @@ function CreatorPreview() {
           <Check className="size-4" />
         </span>
         <div>
-          <p className="text-xs font-medium">Coffee received</p>
+          <p className="text-xs font-medium">Bread received 🍞</p>
           <p className="text-[11px] text-muted-foreground">₦1,000 from Tunde</p>
         </div>
       </div>

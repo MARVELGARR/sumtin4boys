@@ -136,9 +136,9 @@ export function DonateCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Buy {displayName} a coffee</CardTitle>
+          <CardTitle>Tear {displayName} bread 🍞</CardTitle>
           <CardDescription>
-            {formatMoney(coffeePrice, currency)} per coffee
+            {formatMoney(coffeePrice, currency)} per bread
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -170,9 +170,9 @@ export function DonateCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Buy {displayName} a coffee</CardTitle>
+        <CardTitle>Tear {displayName} bread 🍞</CardTitle>
         <CardDescription>
-          {formatMoney(coffeePrice, currency)} per coffee
+          {formatMoney(coffeePrice, currency)} per bread
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -183,30 +183,32 @@ export function DonateCard({
         ) : null}
         <form className="flex flex-col gap-5" onSubmit={handleSubmit} noValidate>
           <Field data-invalid={errors.quantity ? true : undefined}>
-            <FieldTitle>Coffees</FieldTitle>
+            <FieldTitle>Bread count</FieldTitle>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One fewer coffee"
+                aria-label="One fewer bread"
                 disabled={pending || quantity <= 1}
                 onClick={() => setQuantityTo(quantity - 1)}
+                className="size-10 touch-manipulation text-base font-semibold"
               >
-                <Minus />
+                <Minus className="size-4" />
               </Button>
-              <span className="w-10 text-center text-sm tabular-nums font-medium">
+              <span className="w-10 text-center text-base tabular-nums font-bold">
                 {quantity}
               </span>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One more coffee"
+                aria-label="One more bread"
                 disabled={pending || quantity >= MAX_QUANTITY}
                 onClick={() => setQuantityTo(quantity + 1)}
+                className="size-10 touch-manipulation text-base font-semibold"
               >
-                <Plus />
+                <Plus className="size-4" />
               </Button>
               <span className="text-xs text-muted-foreground">
                 up to {MAX_QUANTITY}
@@ -282,28 +284,28 @@ export function DonateCard({
             />
           </Field>
 
-          <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
+          <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2.5">
             <div className="flex flex-col">
               <span className="text-xs text-muted-foreground">
-                {quantity} {quantity === 1 ? "coffee" : "coffees"}
+                {quantity} {quantity === 1 ? "bread" : "breads"}
               </span>
               <span className="text-xs text-muted-foreground">
                 {formatMoney(coffeePrice, currency)} each
               </span>
             </div>
-            <span className="tabular-nums font-medium">
+            <span className="tabular-nums font-semibold text-base">
               {formatMoney(total, currency)}
             </span>
           </div>
 
-          <Button type="submit" size="lg" className="w-full" disabled={pending}>
+          <Button type="submit" size="lg" className="w-full h-12 text-base font-semibold shadow-md shadow-primary/20" disabled={pending}>
             {pending ? (
               <>
                 <Spinner />
                 Starting checkout…
               </>
             ) : (
-              <>Support with {formatMoney(total, currency)}</>
+              <>Tear bread with {formatMoney(total, currency)}</>
             )}
           </Button>
         </form>

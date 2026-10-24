@@ -105,7 +105,7 @@ export const startCheckout = internalMutation({
 
     const quantity = args.quantity;
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
-      throw appError("invalid_input", `Choose between 1 and ${MAX_QUANTITY} coffees.`);
+      throw appError("invalid_input", `Choose between 1 and ${MAX_QUANTITY} bread.`);
     }
     const supporterName = args.supporterName.trim();
     if (supporterName.length < 1 || supporterName.length > SUPPORTER_NAME_MAX_LENGTH) {
@@ -647,17 +647,17 @@ export const listMine = query({
     const status = args.status;
     const page = status
       ? await ctx.db
-          .query("donations")
-          .withIndex("by_creator_status", (q) =>
-            q.eq("creatorId", creator._id).eq("status", status),
-          )
-          .order("desc")
-          .paginate(args.paginationOpts)
+        .query("donations")
+        .withIndex("by_creator_status", (q) =>
+          q.eq("creatorId", creator._id).eq("status", status),
+        )
+        .order("desc")
+        .paginate(args.paginationOpts)
       : await ctx.db
-          .query("donations")
-          .withIndex("by_creator", (q) => q.eq("creatorId", creator._id))
-          .order("desc")
-          .paginate(args.paginationOpts);
+        .query("donations")
+        .withIndex("by_creator", (q) => q.eq("creatorId", creator._id))
+        .order("desc")
+        .paginate(args.paginationOpts);
 
     return {
       ...page,
