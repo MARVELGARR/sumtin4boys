@@ -3,7 +3,15 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, query } from "./_generated/server";
-import { appUrl, connectEnabled, isPubliclyReachableUrl, paymentsConfigured, platformFeeFor, resolvePaymentsDriver } from "./lib/config";
+import {
+  appUrl,
+  checkoutRedirectBase,
+  connectEnabled,
+  isPubliclyReachableUrl,
+  paymentsConfigured,
+  platformFeeFor,
+  resolvePaymentsDriver,
+} from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
 import {
@@ -134,13 +142,17 @@ export const startCheckout = internalMutation({
       );
     }
 
-    // Bachs refuses checkout sessions whose redirect URLs are not public, so
-    // catch the misconfiguration here with an actionable message (and before a
-    // donation row or an apiOperation is created).
-    if (resolvePaymentsDriver() === "bachs" && !isPubliclyReachableUrl(appUrl())) {
+    // Bachs refuses checkout sessions whose redirect URLs are not public.
+    // Checkout redirects are built from CHECKOUT_REDIRECT_URL (default: this
+    // deployment's public Convex site), which 302s back to APP_URL. Catch a
+    // bad explicit value here, before creating a donation or apiOperation.
+    if (
+      resolvePaymentsDriver() === "bachs" &&
+      !isPubliclyReachableUrl(checkoutRedirectBase())
+    ) {
       throw appError(
         "payments_unavailable",
-        "Payments need a public APP_URL: Bachs rejects localhost redirect URLs. Point APP_URL at a public HTTPS URL (for example an ngrok or localtunnel URL) and try again.",
+        "Payments need a publicly reachable checkout redirect URL. Set CHECKOUT_REDIRECT_URL to a public HTTPS URL (for example your Convex site URL) and try again.",
       );
     }
 

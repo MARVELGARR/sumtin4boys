@@ -7,7 +7,7 @@
  */
 
 import type { Doc } from "../_generated/dataModel";
-import { appUrl, connectEnabled } from "../lib/config";
+import { checkoutRedirectBase, connectEnabled } from "../lib/config";
 import { fromMinorUnits } from "../lib/money";
 import type { CheckoutPayload } from "./provider";
 
@@ -24,7 +24,7 @@ export function buildCheckoutPayload(
   creator: Doc<"creators">,
   donation: Doc<"donations">,
 ): CheckoutPayload {
-  const app = appUrl();
+  const redirectBase = checkoutRedirectBase();
   const connectActive =
     connectEnabled() && creator.onboardingStatus === "enabled" && creator.sellerAccountId;
   return {
@@ -34,8 +34,8 @@ export function buildCheckoutPayload(
     idempotencyKey: checkoutIdempotencyKey(donation.reference),
     supporterName: donation.supporterName,
     supporterEmail: donation.supporterEmail,
-    successUrl: `${app}/thanks?ref=${encodeURIComponent(donation.reference)}`,
-    cancelUrl: `${app}/${creator.username}`,
+    successUrl: `${redirectBase}/checkout/success?ref=${encodeURIComponent(donation.reference)}`,
+    cancelUrl: `${redirectBase}/checkout/cancel?username=${encodeURIComponent(creator.username)}`,
     creatorUsername: creator.username,
     donationId: donation._id,
     platformFee: fromMinorUnits(donation.platformFee, donation.currency),

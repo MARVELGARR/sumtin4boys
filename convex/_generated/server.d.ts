@@ -35,6 +35,7 @@ type Env = {
   readonly BACHS_API_KEY: string | undefined;
   readonly BACHS_ENV: "sandbox" | "production" | undefined;
   readonly BACHS_WEBHOOK_SECRET: string | undefined;
+  readonly CHECKOUT_REDIRECT_URL: string | undefined;
   readonly CONNECT_ENABLED: string | undefined;
   readonly EMAIL_FROM: string | undefined;
   readonly MIN_PAYOUT_MINOR: string | undefined;

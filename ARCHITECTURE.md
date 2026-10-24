@@ -419,7 +419,8 @@ Use `convex-test` for backend logic and Playwright for flows. Required cases:
 BACHS_API_KEY=            # sk_sandbox_… (dev/staging), sk_live_… (prod)
 BACHS_ENV=sandbox|production
 BACHS_WEBHOOK_SECRET=
-APP_URL=                  # public URL used for checkout redirects
+APP_URL=                  # final Next.js origin (http://localhost:3000 in dev)
+CHECKOUT_REDIRECT_URL=    # optional public base for checkout redirects; defaults to CONVEX_SITE_URL
 PLATFORM_FEE_BPS=         # e.g. 500 = 5%
 RESEND_API_KEY=
 SENTRY_DSN=

@@ -70,10 +70,18 @@ const app = defineApp({
     // App
     // ---------------------------------------------------------------------
     /**
-     * Public origin of the Next.js app, used for checkout success/cancel
-     * URLs and links in emails. Defaults to http://localhost:3000.
+     * Origin of the Next.js app. Used as the final destination of checkout
+     * redirects and for links in emails. Defaults to http://localhost:3000.
      */
     APP_URL: v.optional(v.string()),
+    /**
+     * Public base URL handed to Bachs for checkout success/cancel redirects.
+     * Defaults to this deployment's Convex site URL, whose `/checkout/*` HTTP
+     * routes 302 back to APP_URL. This lets local development keep
+     * APP_URL=http://localhost:3000 without a tunnel, while still satisfying
+     * Bachs' requirement that redirect URLs be publicly reachable.
+     */
+    CHECKOUT_REDIRECT_URL: v.optional(v.string()),
 
     // ---------------------------------------------------------------------
     // Email (optional; notifications are skipped, not failed, without a key)

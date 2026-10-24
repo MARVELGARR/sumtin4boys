@@ -91,6 +91,17 @@ export function appUrl(): string {
 }
 
 /**
+ * Public base URL handed to Bachs for checkout success/cancel redirects.
+ *
+ * Bachs rejects localhost redirect targets. By default this is the Convex site
+ * URL, whose `/checkout/success` and `/checkout/cancel` routes 302 the browser
+ * back to `appUrl()`, so local development needs no tunnel.
+ */
+export function checkoutRedirectBase(): string {
+  return (env.CHECKOUT_REDIRECT_URL ?? env.CONVEX_SITE_URL).replace(/\/+$/, "");
+}
+
+/**
  * Whether a URL can be used as a payment-provider redirect target.
  *
  * Bachs rejects loopback/private hosts with

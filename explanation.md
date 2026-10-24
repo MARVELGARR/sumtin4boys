@@ -339,7 +339,8 @@ Located in [`convex/lib/guards.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/co
 | `PLATFORM_FEE_BPS` | `string` | `"500"` (5%) | Platform commission in basis points (500 bps = 5.00%). |
 | `SETTLEMENT_HOLD_HOURS`| `string` | `"24"` | Holding window before received funds become withdrawable. |
 | `MIN_PAYOUT_MINOR` | `string` | `"100000"` (₦1,000) | Minimum allowable withdrawal in minor units. |
-| `APP_URL` | `string` | `"http://localhost:3000"` | Public web app domain for redirect URLs. |
+| `APP_URL` | `string` | `"http://localhost:3000"` | Final Next.js origin used for email links and the destination of checkout redirects. |
+| `CHECKOUT_REDIRECT_URL` | `string` | `CONVEX_SITE_URL` | Public base URL given to Bachs for checkout success/cancel redirects. The Convex-site routes 302 back to `APP_URL`, so local development needs no tunnel. |
 | `ADMIN_EMAILS` | `string` | *(None)* | Comma-separated list of admin emails for RBAC access. |
 
 ### 5.2 Active Sandbox Key & Testing Strategy
@@ -355,7 +356,8 @@ BACHS_ENV=sandbox
 1. **Bachs Sandbox Mode (`PAYMENTS_DRIVER=bachs`):**
    - Connects to `https://sandbox-api.bachs.io`.
    - Generates real hosted checkout sessions.
-   - Requires public webhook tunneling (e.g., via ngrok or Bachs CLI webhook forwarding to `https://<deployment>.convex.site/bachs/webhook`).
+   - Webhooks go to the deployment's public `https://<deployment>.convex.site/bachs/webhook` URL — no tunnel needed.
+   - Checkout success/cancel URLs go through `https://<deployment>.convex.site/checkout/*`, which then redirects the browser back to `APP_URL` (default `http://localhost:3000`) — also no tunnel needed.
 2. **Simulated Driver (`PAYMENTS_DRIVER=simulated`):**
    - Works 100% offline with zero external network dependencies.
    - Exercises the entire double-entry ledger, webhook events, and settlement pipeline.

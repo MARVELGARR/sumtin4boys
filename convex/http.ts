@@ -3,6 +3,12 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 import { classifyEvent } from "./bachs/provider";
+import { appUrl } from "./lib/config";
+import {
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  USERNAME_PATTERN,
+} from "./lib/validation";
 
 const http = httpRouter();
 
@@ -13,6 +19,16 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function redirect(location: string): Response {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: location,
+      "Cache-Control": "no-store",
+    },
   });
 }
 
@@ -57,6 +73,41 @@ function extractCheckoutId(
 function extractAccountId(data: Record<string, unknown>): string | undefined {
   return stringOrUndefined(data.account) ?? stringOrUndefined(data.account_id);
 }
+
+/**
+ * Bachs checkout redirects.
+ *
+ * Bachs requires public success/cancel URLs, so checkout sessions point at
+ * these Convex-site routes (see CHECKOUT_REDIRECT_URL) and the browser is then
+ * sent back to the app. This keeps local development tunnel-free.
+ */
+http.route({
+  path: "/checkout/success",
+  method: "GET",
+  handler: httpAction(async (_ctx, req) => {
+    const ref = new URL(req.url).searchParams.get("ref") ?? "";
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(ref)) {
+      return json(400, { error: "invalid_reference" });
+    }
+    return redirect(`${appUrl()}/thanks?ref=${encodeURIComponent(ref)}`);
+  }),
+});
+
+http.route({
+  path: "/checkout/cancel",
+  method: "GET",
+  handler: httpAction(async (_ctx, req) => {
+    const username = new URL(req.url).searchParams.get("username") ?? "";
+    if (
+      username.length < USERNAME_MIN_LENGTH ||
+      username.length > USERNAME_MAX_LENGTH ||
+      !USERNAME_PATTERN.test(username)
+    ) {
+      return json(400, { error: "invalid_username" });
+    }
+    return redirect(`${appUrl()}/${encodeURIComponent(username)}`);
+  }),
+});
 
 /**
  * Bachs webhook endpoint.
