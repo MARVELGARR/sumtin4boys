@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
 import { Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
+import {
+  BreadBuddy,
+  CheckBuddy,
+} from "@/components/brand/toy-icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { TurnstileWidget } from "@/components/creator/turnstile-widget";
 import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
@@ -35,12 +40,13 @@ import {
   formatMoney,
   isValidEmail,
 } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type DonateCardProps = {
   username: string;
   displayName: string;
-  /** Price of one coffee in integer minor units. */
-  coffeePrice: number;
+  /** Price of one bread in integer minor units. */
+  breadPrice: number;
   currency: string;
 };
 
@@ -48,7 +54,18 @@ type FieldErrors = {
   name?: string;
   email?: string;
   quantity?: string;
+  captcha?: string;
 };
+
+const QUANTITY_PRESETS = [1, 3, 5, 10] as const;
+
+const QUICK_MESSAGES = [
+  "Take data 🌐",
+  "Fuel for the gen ⛽",
+  "For the late nights 🌙",
+  "You too much 🔥",
+  "Small something 💛",
+];
 
 /**
  * The support form on a public creator page. Honours the deployment's payment
@@ -57,7 +74,7 @@ type FieldErrors = {
 export function DonateCard({
   username,
   displayName,
-  coffeePrice,
+  breadPrice,
   currency,
 }: DonateCardProps) {
   const mode = useQuery(api.payments.mode);
@@ -71,8 +88,15 @@ export function DonateCard({
   const [isPrivate, setIsPrivate] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
-  const total = coffeePrice * quantity;
+  const total = breadPrice * quantity;
+
+  const handleTurnstileToken = useCallback((token: string | null) => {
+    setTurnstileToken(token);
+    setErrors((prev) => ({ ...prev, captcha: undefined }));
+  }, []);
 
   function setQuantityTo(next: number) {
     setQuantity(Math.min(MAX_QUANTITY, Math.max(1, next)));
@@ -93,7 +117,10 @@ export function DonateCard({
       next.email = "Enter a valid email address.";
     }
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
-      next.quantity = `Choose between 1 and ${MAX_QUANTITY} coffees.`;
+      next.quantity = `Choose between 1 and ${MAX_QUANTITY} breads.`;
+    }
+    if (mode?.turnstileRequired && !turnstileToken) {
+      next.captcha = "Complete the human verification above.";
     }
     return next;
   }
@@ -114,6 +141,7 @@ export function DonateCard({
         supporterEmail: supporterEmail.trim(),
         isPrivate,
         ...(trimmedMessage ? { message: trimmedMessage } : {}),
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
 
       if (result.status === "redirect") {
@@ -129,16 +157,24 @@ export function DonateCard({
           : appErrorMessage(error),
       );
       setPending(false);
+      // Tokens are single-use. Reset after a failure so the next attempt gets
+      // a fresh challenge instead of retrying a consumed token.
+      setTurnstileToken(null);
+      setTurnstileReset((value) => value + 1);
     }
   }
 
   if (mode === undefined) {
     return (
-      <Card>
+      <Card className="toy-card relative overflow-hidden">
+        <div className="ankara-ribbon absolute inset-x-0 top-0 h-1.5" />
         <CardHeader>
-          <CardTitle>Tear {displayName} bread 🍞</CardTitle>
+          <CardTitle className="flex items-center gap-2 font-toy text-xl">
+            <BreadBuddy size={28} />
+            Tear {displayName} small bread
+          </CardTitle>
           <CardDescription>
-            {formatMoney(coffeePrice, currency)} per bread
+            {formatMoney(breadPrice, currency)} per bread
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -152,11 +188,15 @@ export function DonateCard({
     );
   }
 
-  if (mode.driver === "bachs" && !mode.checkoutReady) {
+  if (!mode.checkoutReady) {
     return (
-      <Card>
+      <Card className="toy-card relative overflow-hidden">
+        <div className="ankara-ribbon absolute inset-x-0 top-0 h-1.5" />
         <CardHeader>
-          <CardTitle>Support is temporarily unavailable on this deployment.</CardTitle>
+          <CardTitle className="flex items-center gap-2 font-toy text-xl">
+            <BreadBuddy size={28} />
+            Support is temporarily unavailable
+          </CardTitle>
           <CardDescription>
             The payment provider isn&apos;t configured right now, so{" "}
             {displayName} can&apos;t accept new support. Please check back
@@ -168,23 +208,65 @@ export function DonateCard({
   }
 
   return (
-    <Card>
+    <Card className="toy-card relative overflow-hidden">
+      <div className="ankara-ribbon absolute inset-x-0 top-0 h-1.5" />
       <CardHeader>
-        <CardTitle>Tear {displayName} bread 🍞</CardTitle>
+        <CardTitle className="flex items-center gap-2 font-toy text-xl sm:text-2xl">
+          <BreadBuddy size={30} />
+          <span className="[overflow-wrap:anywhere]">
+            Tear {displayName} small bread
+          </span>
+        </CardTitle>
         <CardDescription>
-          {formatMoney(coffeePrice, currency)} per bread
+          {formatMoney(breadPrice, currency)} per bread · small small is
+          enough.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {mode.driver === "simulated" ? (
-          <p className="mb-4 text-xs text-muted-foreground">
+          <p className="mb-4 rounded-xl border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/20 px-3 py-2 text-xs text-muted-foreground">
             Demo deployment — payments are simulated.
           </p>
         ) : null}
         <form className="flex flex-col gap-5" onSubmit={handleSubmit} noValidate>
           <Field data-invalid={errors.quantity ? true : undefined}>
-            <FieldTitle>Bread count</FieldTitle>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <FieldTitle>How many breads?</FieldTitle>
+              <span className="text-[11px] text-muted-foreground">
+                up to {MAX_QUANTITY}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2">
+              {QUANTITY_PRESETS.map((preset) => {
+                const active = quantity === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setQuantityTo(preset)}
+                    aria-pressed={active}
+                    disabled={pending}
+                    className={cn(
+                      "flex touch-manipulation flex-col items-center gap-0.5 rounded-xl border-2 px-1.5 py-2 text-center transition-colors disabled:opacity-50",
+                      active
+                        ? "border-primary bg-[var(--toy-ochre)]/45"
+                        : "border-[var(--toy-ink)]/10 bg-background/60 hover:bg-muted/60",
+                    )}
+                  >
+                    <BreadBuddy size={23} />
+                    <span className="text-sm font-bold tabular-nums">
+                      {preset}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatMoney(breadPrice * preset, currency)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -192,12 +274,17 @@ export function DonateCard({
                 aria-label="One fewer bread"
                 disabled={pending || quantity <= 1}
                 onClick={() => setQuantityTo(quantity - 1)}
-                className="size-10 touch-manipulation text-base font-semibold"
+                className="size-9 touch-manipulation"
               >
                 <Minus className="size-4" />
               </Button>
-              <span className="w-10 text-center text-base tabular-nums font-bold">
-                {quantity}
+              <span className="min-w-16 text-center text-sm">
+                <span className="font-toy text-xl font-bold tabular-nums">
+                  {quantity}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  {quantity === 1 ? "bread" : "breads"}
+                </span>
               </span>
               <Button
                 type="button"
@@ -206,13 +293,10 @@ export function DonateCard({
                 aria-label="One more bread"
                 disabled={pending || quantity >= MAX_QUANTITY}
                 onClick={() => setQuantityTo(quantity + 1)}
-                className="size-10 touch-manipulation text-base font-semibold"
+                className="size-9 touch-manipulation"
               >
                 <Plus className="size-4" />
               </Button>
-              <span className="text-xs text-muted-foreground">
-                up to {MAX_QUANTITY}
-              </span>
             </div>
             <FieldError>{errors.quantity}</FieldError>
           </Field>
@@ -227,7 +311,7 @@ export function DonateCard({
                 setErrors((prev) => ({ ...prev, name: undefined }));
               }}
               maxLength={SUPPORTER_NAME_MAX_LENGTH}
-              placeholder="Ada"
+              placeholder="Ada from Lagos"
               autoComplete="name"
               disabled={pending}
               aria-invalid={errors.name ? true : undefined}
@@ -250,18 +334,40 @@ export function DonateCard({
               disabled={pending}
               aria-invalid={errors.email ? true : undefined}
             />
+            <FieldDescription>
+              For your receipt. Never shown on the page.
+            </FieldDescription>
             <FieldError>{errors.email}</FieldError>
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="donate-message">Message</FieldLabel>
+            <FieldLabel htmlFor="donate-message">Kind words</FieldLabel>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_MESSAGES.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setMessage(preset)}
+                  aria-pressed={message === preset}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
+                    message === preset
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-[var(--toy-ink)]/10 bg-background/60 text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <Textarea
               id="donate-message"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               maxLength={MESSAGE_MAX_LENGTH}
               rows={3}
-              placeholder="Say something nice…"
+              placeholder="Drop a kind word — make them smile…"
               disabled={pending}
             />
             <FieldDescription className="flex items-center justify-between gap-2">
@@ -284,30 +390,55 @@ export function DonateCard({
             />
           </Field>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2.5">
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">
-                {quantity} {quantity === 1 ? "bread" : "breads"}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {formatMoney(coffeePrice, currency)} each
-              </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 px-3.5 py-3">
+            <div className="flex items-center gap-2.5">
+              <BreadBuddy size={27} />
+              <div className="flex flex-col text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {quantity} {quantity === 1 ? "bread" : "breads"}
+                </span>
+                <span>{formatMoney(breadPrice, currency)} each</span>
+              </div>
             </div>
-            <span className="tabular-nums font-semibold text-base">
+            <span className="font-toy text-xl font-bold tabular-nums">
               {formatMoney(total, currency)}
             </span>
           </div>
 
-          <Button type="submit" size="lg" className="w-full h-12 text-base font-semibold shadow-md shadow-primary/20" disabled={pending}>
+          {mode.turnstileRequired && mode.turnstileSiteKey ? (
+            <Field data-invalid={errors.captcha ? true : undefined}>
+              <TurnstileWidget
+                key={turnstileReset}
+                siteKey={mode.turnstileSiteKey}
+                onToken={handleTurnstileToken}
+                className="min-h-[65px] w-full"
+              />
+              <FieldError>{errors.captcha}</FieldError>
+            </Field>
+          ) : null}
+
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 w-full gap-2 text-base font-semibold shadow-lg shadow-primary/20"
+            disabled={pending}
+          >
             {pending ? (
               <>
                 <Spinner />
                 Starting checkout…
               </>
             ) : (
-              <>Tear bread with {formatMoney(total, currency)}</>
+              <>
+                <BreadBuddy size={22} />
+                Tear bread · {formatMoney(total, currency)}
+              </>
             )}
           </Button>
+          <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
+            <CheckBuddy className="size-3.5" />
+            Secure checkout · no account needed
+          </p>
         </form>
       </CardContent>
     </Card>

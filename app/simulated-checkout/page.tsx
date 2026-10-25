@@ -11,15 +11,17 @@ export const metadata: Metadata = {
 
 export default function SimulatedCheckoutPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto w-full max-w-xl px-4 py-10">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="mt-6 h-80 w-full" />
-        </div>
-      }
-    >
-      <SimulatedCheckoutView />
-    </Suspense>
+    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-x-clip bg-background text-foreground">
+      <Suspense
+        fallback={
+          <div className="mx-auto w-full max-w-xl px-4 py-10">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="mt-6 h-80 w-full" />
+          </div>
+        }
+      >
+        <SimulatedCheckoutView />
+      </Suspense>
+    </div>
   );
 }

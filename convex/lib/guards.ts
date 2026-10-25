@@ -63,23 +63,33 @@ export async function requireCreator(
   return { userId, creator };
 }
 
-/** True when the signed-in user's email is in `ADMIN_EMAILS`. */
-export async function isAdmin(ctx: Ctx): Promise<boolean> {
-  const user = await currentUser(ctx);
-  if (!user?.email) return false;
-  const allowList = adminEmails();
-  return allowList.includes(user.email.toLowerCase());
+/**
+ * Admin = allow-listed email AND a verified email.
+ *
+ * The email check alone is not enough: an unverified password account could
+ * claim an allow-listed address. Convex Auth records verification in
+ * `emailVerificationTime` (Google sign-in sets it from the provider's
+ * verified email). Password admins must complete email verification before
+ * these tools unlock.
+ */
+function isVerifiedAdminEmail(user: Doc<"users"> | null): boolean {
+  if (!user?.email || !user.emailVerificationTime) return false;
+  return adminEmails().includes(user.email.toLowerCase());
 }
 
-/** Throws `forbidden` unless the signed-in user is an admin. */
+/** True when the signed-in user is a verified admin. */
+export async function isAdmin(ctx: Ctx): Promise<boolean> {
+  return isVerifiedAdminEmail(await currentUser(ctx));
+}
+
+/** Throws `forbidden` unless the signed-in user is a verified admin. */
 export async function requireAdmin(ctx: Ctx): Promise<Doc<"users">> {
   const userId = await requireUserId(ctx);
   const user = await ctx.db.get("users", userId);
-  const allowList = adminEmails();
-  if (!user?.email || !allowList.includes(user.email.toLowerCase())) {
+  if (!isVerifiedAdminEmail(user)) {
     throw appError("forbidden", "This area is restricted.");
   }
-  return user;
+  return user as Doc<"users">;
 }
 
 /** Display name fallback for new creators, derived from the user doc. */

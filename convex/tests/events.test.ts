@@ -150,7 +150,7 @@ describe("events pipeline — completion", () => {
     expect(creator.balancePending).toBe(47_500);
   });
 
-  it("does not apply an event older than the last applied one", async () => {
+  it("applies an older completion when the live checkout shows collected money", async () => {
     const t = makeTest();
     const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
     const checkoutId = eventId("ch");
@@ -162,21 +162,52 @@ describe("events pipeline — completion", () => {
     const evtId = eventId("evt");
     const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
       eventId: evtId,
-      eventType: "checkout.completed",
+      eventType: "collection.succeeded",
       eventCreatedAt: 4_999_999,
       source: "webhook",
       checkout: paidCheckoutState({ checkoutId, amountMinor: amount, chargeId: "py_ch_stale" }),
     });
 
+    // The event timestamp is older, but the live state proves the money was
+    // collected. Paid is monotonic and must beat the earlier unresolved state.
+    expect(result.outcome).toBe("processed");
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.status).toBe("paid");
+    expect(donation?.lastEventAt).toBe(5_000_000);
+    expect(await listLedger(t, creatorId)).toHaveLength(2);
+    expect((await getBalances(t, creatorId)).pending).toBe(47_500);
+    const rows = await listEventsByEventId(t, evtId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outcome).toBe("processed");
+  });
+
+  it("still rejects a stale non-completion state change", async () => {
+    const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const checkoutId = eventId("ch");
+    const { donationId, amount } = await seedDonation(t, { creatorId, amount: 50_000, checkoutId });
+    await t.run(async (ctx) =>
+      ctx.db.patch("donations", donationId, { lastEventAt: 5_000_000 }),
+    );
+
+    const evtId = eventId("evt");
+    const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: evtId,
+      eventType: "checkout.expired",
+      eventCreatedAt: 4_999_999,
+      source: "webhook",
+      checkout: {
+        checkoutId,
+        status: "expired",
+        amount: fromMinorUnits(amount, "NGN"),
+        currency: "NGN",
+      },
+    });
+
     expect(result.outcome).toBe("stale");
     const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
     expect(donation?.status).toBe("pending");
-    expect(donation?.lastEventAt).toBe(5_000_000);
-    expect(await listLedger(t, creatorId)).toHaveLength(0);
-    expect((await getBalances(t, creatorId)).pending).toBe(0);
-    const rows = await listEventsByEventId(t, evtId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].outcome).toBe("stale");
+    expect((await listEventsByEventId(t, evtId))[0].outcome).toBe("stale");
   });
 
   it("parks an amount mismatch and leaves the donation untouched", async () => {
@@ -407,9 +438,13 @@ describe("events pipeline — refunds", () => {
     expect(entries).toHaveLength(4);
     const byType = new Map(entries.map((entry) => [entry.type, entry]));
     expect(byType.get("refund")?.amount).toBe(-amount);
-    expect(byType.get("refund")?.settlementStatus).toBe("pending");
+    expect(byType.get("refund")?.settlementStatus).toBe("settled");
     expect(byType.get("fee_reversal")?.amount).toBe(platformFee);
-    expect(byType.get("fee_reversal")?.settlementStatus).toBe("pending");
+    expect(byType.get("fee_reversal")?.settlementStatus).toBe("settled");
+    // The original pending donation/fee entries were settled in the same
+    // transaction, so nothing is left stranded in pending.
+    expect(byType.get("donation")?.settlementStatus).toBe("settled");
+    expect(byType.get("fee")?.settlementStatus).toBe("settled");
 
     const creator = await getCreator(t, creatorId);
     expect(creator.balancePending).toBe(0);

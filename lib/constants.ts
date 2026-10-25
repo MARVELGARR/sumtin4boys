@@ -1,11 +1,6 @@
-
-
-
-
-
 /** Brand + copy constants used across the app. */
 
 export const APP_NAME = "anything4boys";
-export const APP_TAGLINE = "Tear small bread for your Favourite creator";
+export const APP_TAGLINE = "Tear small bread. Make somebody's day";
 export const APP_DESCRIPTION =
-  "anything4boys is a simple way for fans to support creators — Tear small bread with a message in a few taps.";
+  "Tear small bread for Nigerian creators, artists, writers, cooks, students and everyday people you love. Small, voluntary support — no app, no account, no wahala.";

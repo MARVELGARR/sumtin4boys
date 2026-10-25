@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Coffee } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { BreadBuddy } from "@/components/brand/toy-icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,11 +35,14 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-4">
-        <Link href="/" className="flex min-w-0 items-center gap-2 font-semibold tracking-tight">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Coffee className="size-4" />
+        <Link
+          href="/"
+          className="flex min-w-0 items-center gap-1.5 font-semibold tracking-tight sm:gap-2"
+        >
+          <span className="flex size-8 shrink-0 -rotate-3 items-center justify-center">
+            <BreadBuddy size={32} />
           </span>
-          <span className="truncate text-sm sm:text-base">{APP_NAME}</span>
+          <span className="truncate font-toy text-base sm:text-lg">{APP_NAME}</span>
         </Link>
 
         <nav className="flex shrink-0 items-center gap-1 sm:gap-2">

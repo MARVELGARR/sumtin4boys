@@ -5,6 +5,8 @@ import {
   paymentsConfigured,
   platformFeeBps,
   resolvePaymentsDriver,
+  turnstileRequired,
+  turnstileSiteKey,
 } from "./lib/config";
 
 /**
@@ -26,6 +28,10 @@ export const mode = query({
     connectEnabled: v.boolean(),
     /** Platform fee in basis points (500 = 5%). */
     platformFeeBps: v.number(),
+    /** Whether checkout requires a Turnstile token. */
+    turnstileRequired: v.boolean(),
+    /** Public widget key; absent when Turnstile is not configured. */
+    turnstileSiteKey: v.optional(v.string()),
   }),
   handler: async () => {
     return {
@@ -33,6 +39,8 @@ export const mode = query({
       checkoutReady: paymentsConfigured(),
       connectEnabled: connectEnabled(),
       platformFeeBps: platformFeeBps(),
+      turnstileRequired: turnstileRequired(),
+      turnstileSiteKey: turnstileSiteKey(),
     };
   },
 });

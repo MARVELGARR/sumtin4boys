@@ -28,7 +28,9 @@ export type AppErrorCode =
   | "connect_mode"
   | "not_configured"
   | "simulated_only"
-  | "already_resolved";
+  | "already_resolved"
+  | "too_many_entries"
+  | "verification_failed";
 
 export type AppErrorData = {
   code: AppErrorCode;

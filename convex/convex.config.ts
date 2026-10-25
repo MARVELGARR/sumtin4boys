@@ -42,11 +42,17 @@ const app = defineApp({
     /**
      * Which payment driver to use:
      * - "bachs": real Bachs API (requires `BACHS_API_KEY`).
-     * - "simulated": a clearly-labelled local fake checkout. No network, no
-     *   money, full webhook/ledger pipeline. Great for local development.
-     * Unset: "bachs" when `BACHS_API_KEY` is present, otherwise "simulated".
+     * - "simulated": the local fake checkout. Requires `ALLOW_SIMULATED=true`
+     *   as a second, explicit opt-in. Never set this in production.
+     * Unset: Bachs. Missing keys make checkout creation fail loudly; they
+     * never turn the deployment into fake-payments mode.
      */
     PAYMENTS_DRIVER: v.optional(v.union(v.literal("bachs"), v.literal("simulated"))),
+    /**
+     * Explicit opt-in for the simulated payment driver. Set to "true" only on
+     * local/dev deployments, together with PAYMENTS_DRIVER=simulated.
+     */
+    ALLOW_SIMULATED: v.optional(v.string()),
     /**
      * "true" once your platform's Bachs `connect` capability is active and
      * creator payouts should run through connected accounts instead of the
@@ -82,6 +88,17 @@ const app = defineApp({
      * Bachs' requirement that redirect URLs be publicly reachable.
      */
     CHECKOUT_REDIRECT_URL: v.optional(v.string()),
+
+    // ---------------------------------------------------------------------
+    // Bot protection (Cloudflare Turnstile)
+    // ---------------------------------------------------------------------
+    /**
+     * Public Turnstile site key. Safe to send to the browser. When the secret
+     * key is set, checkout creation fails closed without a valid token.
+     */
+    TURNSTILE_SITE_KEY: v.optional(v.string()),
+    /** Server-side Turnstile secret. Never expose this to the browser. */
+    TURNSTILE_SECRET_KEY: v.optional(v.string()),
 
     // ---------------------------------------------------------------------
     // Email (optional; notifications are skipped, not failed, without a key)

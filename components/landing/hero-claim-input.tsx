@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { CheckBuddy, SparkBuddy } from "@/components/brand/toy-icons";
 import { Button } from "@/components/ui/button";
 
 export function HeroClaimInput() {
@@ -26,10 +27,10 @@ export function HeroClaimInput() {
     <div className="w-full max-w-lg">
       <form
         onSubmit={handleSubmit}
-        className={`relative flex flex-col items-stretch rounded-2xl border bg-card/90 p-2 shadow-xl transition-all duration-200 sm:flex-row sm:items-center sm:p-1.5 ${
+        className={`relative flex flex-col items-stretch rounded-2xl border-2 bg-card/90 p-2 shadow-[0_4px_0_rgba(23,61,42,0.08)] transition-all duration-200 sm:flex-row sm:items-center sm:p-1.5 ${
           isFocused
             ? "border-primary ring-2 ring-primary/20 shadow-primary/10"
-            : "border-border/70 hover:border-primary/40 shadow-muted/50"
+            : "border-[var(--toy-ink)]/10 hover:border-primary/40"
         }`}
       >
         <div className="flex flex-1 items-center px-2 py-2 text-sm font-medium sm:px-3 sm:py-1">
@@ -63,15 +64,15 @@ export function HeroClaimInput() {
       </form>
 
       {/* Reactive validation feedback */}
-      <div className="mt-2.5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-2.5 flex items-center justify-center gap-2 text-xs text-muted-foreground sm:justify-start">
         {cleanHandle ? (
-          <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="size-3.5" />
+          <span className="inline-flex items-center gap-1.5 font-medium text-accent">
+            <CheckBuddy className="size-4" />
             <span>anything4boys.com/{cleanHandle} is available to claim!</span>
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-muted-foreground/80">
-            <Sparkles className="size-3 text-primary" />
+            <SparkBuddy className="size-4" />
             <span>Claim your permanent link in 30 seconds · No card required</span>
           </span>
         )}

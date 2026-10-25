@@ -8,14 +8,16 @@ import { fromMinorUnits } from "../lib/money";
 /**
  * Simulated payment driver.
  *
- * When `PAYMENTS_DRIVER=simulated` (the default until a Bachs API key is
- * configured), `donations.createCheckout` redirects supporters to
+ * When both `PAYMENTS_DRIVER=simulated` and `ALLOW_SIMULATED=true` are set,
+ * `donations.createCheckout` redirects supporters to
  * `/simulated-checkout?ref=...` instead of a real Bachs checkout. That page
  * calls `completeSimulatedCheckout` below, which synthesizes the exact event
  * shape a real webhook would deliver and feeds it through the SAME
  * `processCheckoutEvent` pipeline.
  *
- * Nothing here runs in production: every entry point checks the driver.
+ * Nothing here runs in production: every entry point checks the explicit
+ * two-variable opt-in. A missing Bachs key fails closed to Bachs, not fake
+ * payments.
  */
 
 export const completeSimulatedCheckout = mutation({
@@ -31,7 +33,7 @@ export const completeSimulatedCheckout = mutation({
     if (resolvePaymentsDriver() !== "simulated") {
       throw appError(
         "simulated_only",
-        "The simulated checkout is only available when PAYMENTS_DRIVER=simulated.",
+        "The simulated checkout is only available when PAYMENTS_DRIVER=simulated and ALLOW_SIMULATED=true.",
       );
     }
     const donation = await ctx.db

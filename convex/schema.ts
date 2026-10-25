@@ -28,7 +28,12 @@ export default defineSchema({
     displayName: v.string(),
     bio: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
-    /** Price of one "coffee", in minor units. */
+    /**
+     * Price of one bread, in minor units.
+     *
+     * The stored field keeps its historical name until a coordinated data
+     * migration; all public APIs and UI expose it as `breadPrice`.
+     */
     coffeePrice: v.number(),
     /** ISO 4217 currency code this creator collects in. */
     currency: v.string(),
@@ -76,7 +81,7 @@ export default defineSchema({
     /** Supporters can hide their name + message from the public feed. */
     isPrivate: v.boolean(),
     quantity: v.number(),
-    /** Gross amount, minor units: coffeePrice * quantity at creation time. */
+    /** Gross amount, minor units: breadPrice * quantity at creation time. */
     amount: v.number(),
     /** Platform cut, minor units. */
     platformFee: v.number(),
@@ -101,6 +106,9 @@ export default defineSchema({
       v.literal("unresolved"),
       // Refund confirmed by the provider.
       v.literal("refunded"),
+      // Reconciliation gave up after the bounded window. Terminal; requires
+      // manual review, but must not sit at the front of the reconcile queue.
+      v.literal("abandoned"),
     ),
     /** Creator hid the message from the public page. */
     hidden: v.optional(v.boolean()),
@@ -108,13 +116,24 @@ export default defineSchema({
     lastEventAt: v.optional(v.number()),
     createdAt: v.number(),
     paidAt: v.optional(v.number()),
+
+    // --- Reconciliation queue bookkeeping (pending/unresolved only). -------
+    /** Number of times the reconcile cron has checked this donation. */
+    reconcileAttempts: v.optional(v.number()),
+    /** Last time the reconcile cron looked at it (ms). */
+    lastReconciledAt: v.optional(v.number()),
+    /** Next time this donation is due for another reconcile attempt (ms). */
+    nextReconcileAt: v.optional(v.number()),
+    /** When reconciliation moved the donation to the terminal "abandoned" state. */
+    abandonedAt: v.optional(v.number()),
   })
     .index("by_reference", ["reference"])
     .index("by_checkoutId", ["checkoutId"])
     .index("by_paymentId", ["paymentId"])
     .index("by_creator", ["creatorId", "createdAt"])
     .index("by_creator_status", ["creatorId", "status"])
-    .index("by_status_createdAt", ["status", "createdAt"]),
+    .index("by_status_createdAt", ["status", "createdAt"])
+    .index("by_status_nextReconcileAt", ["status", "nextReconcileAt"]),
 
   // ---------------------------------------------------------------------------
   // Ledger: append-only double-sided entries that make up creator balances.
@@ -194,7 +213,28 @@ export default defineSchema({
     receivedAt: v.number(),
   })
     .index("by_eventId", ["eventId"])
-    .index("by_creator", ["creatorId", "receivedAt"]),
+    .index("by_creator", ["creatorId", "receivedAt"])
+    .index("by_receivedAt", ["receivedAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Admin audit log: append-only record of privileged actions.
+  // ---------------------------------------------------------------------------
+  adminAuditLogs: defineTable({
+    actorUserId: v.id("users"),
+    /** Stable action name, e.g. "payout.paid" or "creator.suspended". */
+    action: v.string(),
+    targetType: v.string(),
+    targetId: v.optional(v.string()),
+    /** Human-readable detail (never secrets or bank account numbers). */
+    metadata: v.optional(v.string()),
+    /** JSON snapshot of the relevant state before the action. */
+    beforeJson: v.optional(v.string()),
+    /** JSON snapshot of the relevant state after the action. */
+    afterJson: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_actor", ["actorUserId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 
   // ---------------------------------------------------------------------------
   // API operations: idempotency bookkeeping for writes to the payment
@@ -222,4 +262,28 @@ export default defineSchema({
   })
     .index("by_key", ["key"])
     .index("by_status", ["status", "updatedAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Contact form inbox. Admin-only; never exposed through a public query.
+  // ---------------------------------------------------------------------------
+  contactMessages: defineTable({
+    name: v.string(),
+    email: v.string(),
+    topic: v.union(
+      v.literal("support"),
+      v.literal("creator"),
+      v.literal("payment"),
+      v.literal("press"),
+      v.literal("other"),
+    ),
+    message: v.string(),
+    status: v.union(
+      v.literal("new"),
+      v.literal("read"),
+      v.literal("archived"),
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_status_createdAt", ["status", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 });

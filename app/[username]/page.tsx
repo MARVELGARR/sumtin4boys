@@ -27,7 +27,7 @@ export async function generateMetadata({
 
   const description =
     creator.bio?.trim() ||
-    `Support ${creator.displayName} on ${APP_NAME} — tear them bread.`;
+    `Support ${creator.displayName} on ${APP_NAME} — tear them small bread. No app, no account, no wahala.`;
 
   return {
     title: `${creator.displayName} (@${creator.username})`,
@@ -45,8 +45,10 @@ export default async function CreatorProfilePage({ params }: CreatorPageProps) {
   const preloaded = await preloadQuery(api.creators.getByUsername, { username });
 
   return (
-    <Suspense fallback={<CreatorPageSkeleton />}>
-      <CreatorPage preloaded={preloaded} />
-    </Suspense>
+    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-x-clip bg-background text-foreground">
+      <Suspense fallback={<CreatorPageSkeleton />}>
+        <CreatorPage preloaded={preloaded} />
+      </Suspense>
+    </div>
   );
 }

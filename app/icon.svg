@@ -1,15 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0d9488" />
+  <rect width="64" height="64" rx="14" fill="#0D9488" />
   <path
-    d="M20 22h20a2 2 0 0 1 2 2v10a10 10 0 0 1-10 10h-4a10 10 0 0 1-10-10V24a2 2 0 0 1 2-2Z"
-    fill="#ffffff"
+    d="M12 30c0-10 9-18 20-18s20 8 20 18v13c0 5-4 9-9 9H21c-5 0-9-4-9-9V30Z"
+    fill="#F4C45E"
+    stroke="#FFFFFF"
+    stroke-width="4"
+    stroke-linejoin="round"
   />
   <path
-    d="M42 26h4a4 4 0 0 1 0 8h-4"
+    d="M18 27c1-7 6-11 14-11s13 4 14 11"
     fill="none"
-    stroke="#ffffff"
-    stroke-width="3"
+    stroke="#B45309"
+    stroke-width="4"
     stroke-linecap="round"
   />
-  <path d="M24 16c0-2 2-2 2-4M31 16c0-2 2-2 2-4M38 16c0-2 2-2 2-4" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" fill="none" />
+  <circle cx="25" cy="31" r="2.2" fill="#090B0C" />
+  <circle cx="39" cy="31" r="2.2" fill="#090B0C" />
+  <path
+    d="M28 37c2.2 2.2 5.8 2.2 8 0"
+    fill="none"
+    stroke="#090B0C"
+    stroke-width="3.2"
+    stroke-linecap="round"
+  />
+  <circle cx="20" cy="37" r="3" fill="#FF7A59" opacity=".7" />
+  <circle cx="44" cy="37" r="3" fill="#FF7A59" opacity=".7" />
 </svg>

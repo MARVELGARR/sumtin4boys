@@ -24,13 +24,14 @@ async function fundedCreator(t: Test) {
   const { creatorId, userId } = await makeCreatorWithUser(t, { username: "ada" });
   const amount = 400_000;
   const checkoutId = eventId("ch");
+  const chargeId = eventId("py_ch");
   const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
   const processed = await t.mutation(internal.bachs.events.processCheckoutEvent, {
     eventId: eventId("evt"),
     eventType: "checkout.completed",
     eventCreatedAt: 1_000,
     source: "webhook",
-    checkout: paidCheckoutState({ checkoutId, amountMinor: amount, chargeId: eventId("py_ch") }),
+    checkout: paidCheckoutState({ checkoutId, amountMinor: amount, chargeId }),
   });
   expect(processed.outcome).toBe("processed");
 
@@ -48,7 +49,7 @@ async function fundedCreator(t: Test) {
 
   const balances = await getBalances(t, creatorId);
   expect(balances).toEqual({ pending: 0, available: 380_000, paidOut: 0 });
-  return { creatorId, userId, donationId, available: balances.available };
+  return { creatorId, userId, donationId, chargeId, available: balances.available };
 }
 
 async function requestPayout(t: Test, userId: Id<"users">, amount: number) {
@@ -83,6 +84,39 @@ describe("payouts.request", () => {
     await expect(requestPayout(t, userId, 380_001)).rejects.toMatchObject({
       data: { code: "insufficient_available" },
     });
+  });
+
+  it("cannot withdraw money after the donation is refunded", async () => {
+    const t = makeTest();
+    const { creatorId, userId, chargeId } = await fundedCreator(t);
+
+    const refund = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("refund"),
+      eventType: "refund.paid",
+      eventCreatedAt: Date.now(),
+      source: "webhook",
+      refund: { chargeId },
+    });
+    expect(refund.outcome).toBe("processed");
+
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 0,
+      available: 0,
+      paidOut: 0,
+    });
+
+    // The refund entries are settled immediately, so the clawback has already
+    // reduced available before this request can reserve anything.
+    await expect(requestPayout(t, userId, 100_000)).rejects.toMatchObject({
+      data: { code: "insufficient_available" },
+    });
+    const entries = await listLedger(t, creatorId);
+    expect(entries.find((entry) => entry.type === "refund")?.settlementStatus).toBe(
+      "settled",
+    );
+    expect(
+      entries.find((entry) => entry.type === "fee_reversal")?.settlementStatus,
+    ).toBe("settled");
   });
 
   it("reserves the funds with a manual payout and a settled ledger entry", async () => {
@@ -173,7 +207,9 @@ describe("admin payout resolution", () => {
   async function requestedPayout(t: Test) {
     const funded = await fundedCreator(t);
     const { payoutId } = await requestPayout(t, funded.userId, 100_000);
-    const adminId = await makeUser(t, "admin@test.com", "Admin");
+    const adminId = await makeUser(t, "admin@test.com", "Admin", {
+      emailVerified: true,
+    });
     const outsiderId = await makeUser(t, "outsider@test.com");
     return { ...funded, payoutId, adminId, outsiderId };
   }
@@ -215,6 +251,29 @@ describe("admin payout resolution", () => {
         paidOut: 0,
       });
 
+      const audit = await forUser(t, adminId).query(api.admin.listAuditLog, {});
+      expect(audit).toHaveLength(1);
+      expect(audit[0].action).toBe("payout.failed");
+      expect(JSON.parse(audit[0].beforeJson ?? "null")).toEqual({
+        payoutStatus: "requested",
+        creator: {
+          status: "active",
+          balancePending: 0,
+          balanceAvailable: 280_000,
+          balancePaidOut: 0,
+        },
+      });
+      expect(JSON.parse(audit[0].afterJson ?? "null")).toEqual({
+        payoutStatus: "failed",
+        failureReason: "Bank rejected the transfer",
+        creator: {
+          status: "active",
+          balancePending: 0,
+          balanceAvailable: 380_000,
+          balancePaidOut: 0,
+        },
+      });
+
       // Resolving twice is refused.
       await expect(
         forUser(t, adminId).mutation(api.admin.markPayoutFailed, { payoutId, reason: "again" }),
@@ -244,6 +303,29 @@ describe("admin payout resolution", () => {
         pending: 0,
         available: 280_000,
         paidOut: 100_000,
+      });
+
+      const audit = await forUser(t, adminId).query(api.admin.listAuditLog, {});
+      expect(audit).toHaveLength(1);
+      expect(audit[0].action).toBe("payout.paid");
+      expect(JSON.parse(audit[0].beforeJson ?? "null")).toEqual({
+        payoutStatus: "requested",
+        creator: {
+          status: "active",
+          balancePending: 0,
+          balanceAvailable: 280_000,
+          balancePaidOut: 0,
+        },
+      });
+      expect(JSON.parse(audit[0].afterJson ?? "null")).toEqual({
+        payoutStatus: "paid",
+        reference: "trf_abc123",
+        creator: {
+          status: "active",
+          balancePending: 0,
+          balanceAvailable: 280_000,
+          balancePaidOut: 100_000,
+        },
       });
 
       const rows = await forUser(t, adminId).query(api.admin.listPayouts, {});

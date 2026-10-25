@@ -31,6 +31,7 @@ type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
   readonly ADMIN_EMAILS: string | undefined;
+  readonly ALLOW_SIMULATED: string | undefined;
   readonly APP_URL: string | undefined;
   readonly BACHS_API_KEY: string | undefined;
   readonly BACHS_ENV: "sandbox" | "production" | undefined;
@@ -44,6 +45,8 @@ type Env = {
   readonly RESEND_API_KEY: string | undefined;
   readonly SETTLEMENT_HOLD_HOURS: string | undefined;
   readonly SUPPORT_EMAIL: string | undefined;
+  readonly TURNSTILE_SECRET_KEY: string | undefined;
+  readonly TURNSTILE_SITE_KEY: string | undefined;
 };
 
 /**

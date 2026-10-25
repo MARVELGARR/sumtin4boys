@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Fredoka, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 // from globals.css.
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+const fredoka = Fredoka({ subsets: ["latin"], variable: "--font-toy" });
 
 export const metadata: Metadata = {
   title: {
@@ -20,6 +21,28 @@ export const metadata: Metadata = {
     template: `%s · ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
+  keywords: [
+    "tear small bread",
+    "anything for the boys",
+    "support Nigerian creators",
+    "tip Nigerian creators",
+    "creator support Nigeria",
+    "small bread",
+    "Naija creators",
+    "buy me bread",
+  ],
+  openGraph: {
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description: APP_DESCRIPTION,
+    siteName: APP_NAME,
+    locale: "en_NG",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description: APP_DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,7 +58,15 @@ export default function RootLayout({
 }>) {
   return (
     <ConvexAuthNextjsServerProvider>
-      <html lang="en" className={cn("font-sans", inter.variable, geistMono.variable)}>
+      <html
+        lang="en"
+        className={cn(
+          "font-sans",
+          inter.variable,
+          geistMono.variable,
+          fredoka.variable,
+        )}
+      >
         <body className="bg-background text-foreground antialiased">
           <ConvexClientProvider>
             <div className="flex min-h-dvh flex-col overflow-x-clip">

@@ -42,7 +42,14 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 const PAGE_SIZE = 20;
 const MESSAGE_PREVIEW_LENGTH = 40;
 
-const STATUS_FILTERS = ["all", "paid", "pending", "unresolved", "refunded"] as const;
+const STATUS_FILTERS = [
+  "all",
+  "paid",
+  "pending",
+  "unresolved",
+  "refunded",
+  "abandoned",
+] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 /** Invalid `?status=` values fall back to "all" instead of throwing. */
@@ -56,19 +63,20 @@ const FILTER_LABELS: Record<StatusFilter, string> = {
   pending: "Pending",
   unresolved: "Unresolved",
   refunded: "Refunded",
+  abandoned: "Abandoned",
 };
 
 const EMPTY_COPY: Record<StatusFilter, { title: string; description: string }> = {
   all: {
     title: "No supporters yet",
-    description: "Once someone buys you a coffee, they'll show up here.",
+    description: "Once someone buys you a bread, they'll show up here.",
   },
   paid: {
     title: "No paid supporters yet",
-    description: "Completed coffees will appear in this tab.",
+    description: "Completed bread will appear in this tab.",
   },
   pending: {
-    title: "No pending coffees",
+    title: "No pending bread",
     description: "Payments awaiting confirmation will appear here.",
   },
   unresolved: {
@@ -77,7 +85,11 @@ const EMPTY_COPY: Record<StatusFilter, { title: string; description: string }> =
   },
   refunded: {
     title: "No refunds",
-    description: "Refunded coffees will be listed here if any happen.",
+    description: "Refunded bread will be listed here if any happen.",
+  },
+  abandoned: {
+    title: "No abandoned checkouts",
+    description: "Checkouts we stopped reconciling will be listed here.",
   },
 };
 
@@ -105,7 +117,7 @@ export function SupportersView() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Supporters</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every coffee someone has sent you, newest first.
+          Every bread someone has sent you, newest first.
         </p>
       </div>
 
@@ -205,7 +217,7 @@ export function SupportersView() {
                       <TableRow>
                         <TableHead>Supporter</TableHead>
                         <TableHead>Message</TableHead>
-                        <TableHead className="text-right">Coffees</TableHead>
+                        <TableHead className="text-right">Bread</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Date</TableHead>

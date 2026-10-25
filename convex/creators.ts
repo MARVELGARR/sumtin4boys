@@ -13,10 +13,12 @@ import {
   requireUserId,
 } from "./lib/guards";
 import {
+  ALLOWED_AVATAR_CONTENT_TYPES,
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
-  MAX_COFFEE_PRICE_MINOR,
-  MIN_COFFEE_PRICE_MINOR,
+  MAX_AVATAR_BYTES,
+  MAX_BREAD_PRICE_MINOR,
+  MIN_BREAD_PRICE_MINOR,
   checkUsernameFormat,
   isSupportedCurrency,
   normalizeUsername,
@@ -31,7 +33,7 @@ const publicCreatorValidator = v.object({
   displayName: v.string(),
   bio: v.optional(v.string()),
   avatarUrl: v.union(v.string(), v.null()),
-  coffeePrice: v.number(),
+  breadPrice: v.number(),
   currency: v.string(),
   goalAmount: v.optional(v.number()),
   status: v.union(v.literal("active"), v.literal("suspended")),
@@ -56,7 +58,7 @@ const myCreatorValidator = v.object({
   displayName: v.string(),
   bio: v.optional(v.string()),
   avatarUrl: v.union(v.string(), v.null()),
-  coffeePrice: v.number(),
+  breadPrice: v.number(),
   currency: v.string(),
   goalAmount: v.optional(v.number()),
   status: v.union(v.literal("active"), v.literal("suspended")),
@@ -125,7 +127,10 @@ export const getByUsername = query({
         q.eq("creatorId", creator._id).eq("status", "paid"),
       )
       .order("desc")
-      .take(50);
+      // The public feed filters private/hidden rows after the index scan.
+      // Take a larger bounded window so a creator with many private donations
+      // still has a full public wall.
+      .take(200);
     const recentDonations = paid
       .filter((donation) => !donation.isPrivate && !donation.hidden)
       .slice(0, 20)
@@ -145,7 +150,7 @@ export const getByUsername = query({
         displayName: creator.displayName,
         bio: creator.bio,
         avatarUrl,
-        coffeePrice: creator.coffeePrice,
+        breadPrice: creator.coffeePrice,
         currency: creator.currency,
         goalAmount: creator.goalAmount,
         status: creator.status,
@@ -224,7 +229,7 @@ export const claimUsername = mutation({
       userId,
       username: format.username,
       displayName: defaultDisplayName(user, format.username),
-      coffeePrice: MIN_COFFEE_PRICE_MINOR * 10, // ₦1,000.00 default
+      coffeePrice: MIN_BREAD_PRICE_MINOR * 10, // ₦1,000.00 default
       currency: "NGN",
       status: "active",
       balancePending: 0,
@@ -269,7 +274,7 @@ export const getMyCreator = query({
         displayName: creator.displayName,
         bio: creator.bio,
         avatarUrl,
-        coffeePrice: creator.coffeePrice,
+        breadPrice: creator.coffeePrice,
         currency: creator.currency,
         goalAmount: creator.goalAmount,
         status: creator.status,
@@ -294,7 +299,7 @@ export const updateProfile = mutation({
   args: {
     displayName: v.optional(v.string()),
     bio: v.optional(v.union(v.string(), v.null())),
-    coffeePrice: v.optional(v.number()),
+    breadPrice: v.optional(v.number()),
     currency: v.optional(v.string()),
     goalAmount: v.optional(v.union(v.number(), v.null())),
   },
@@ -325,14 +330,14 @@ export const updateProfile = mutation({
       }
     }
 
-    if (args.coffeePrice !== undefined) {
-      const price = args.coffeePrice;
+    if (args.breadPrice !== undefined) {
+      const price = args.breadPrice;
       if (
         !Number.isSafeInteger(price) ||
-        price < MIN_COFFEE_PRICE_MINOR ||
-        price > MAX_COFFEE_PRICE_MINOR
+        price < MIN_BREAD_PRICE_MINOR ||
+        price > MAX_BREAD_PRICE_MINOR
       ) {
-        throw appError("invalid_input", "That coffee price is out of range.");
+        throw appError("invalid_input", "That bread price is out of range.");
       }
       await ctx.db.patch("creators", creator._id, { coffeePrice: price });
     }
@@ -364,7 +369,7 @@ export const updateProfile = mutation({
         await ctx.db.patch("creators", creator._id, { goalAmount: undefined });
       } else {
         const goal = args.goalAmount;
-        if (!Number.isSafeInteger(goal) || goal < MIN_COFFEE_PRICE_MINOR) {
+        if (!Number.isSafeInteger(goal) || goal < MIN_BREAD_PRICE_MINOR) {
           throw appError("invalid_input", "That goal amount is out of range.");
         }
         await ctx.db.patch("creators", creator._id, { goalAmount: goal });
@@ -400,7 +405,25 @@ export const setAvatar = mutation({
     if (!metadata) {
       throw appError("invalid_input", "That upload could not be found. Try again.");
     }
+    const contentType = metadata.contentType?.toLowerCase();
+    if (
+      !contentType ||
+      !(ALLOWED_AVATAR_CONTENT_TYPES as readonly string[]).includes(contentType)
+    ) {
+      throw appError(
+        "invalid_input",
+        "Your avatar must be a PNG, JPEG or WebP image.",
+      );
+    }
+    if (metadata.size <= 0 || metadata.size > MAX_AVATAR_BYTES) {
+      throw appError("invalid_input", "Your avatar must be 2 MB or smaller.");
+    }
+
+    const previous = creator.avatarStorageId;
     await ctx.db.patch("creators", creator._id, { avatarStorageId: args.storageId });
+    if (previous && previous !== args.storageId) {
+      await ctx.storage.delete(previous);
+    }
     return null;
   },
 });
@@ -410,7 +433,11 @@ export const removeAvatar = mutation({
   returns: v.null(),
   handler: async (ctx) => {
     const { creator } = await requireCreator(ctx);
+    const previous = creator.avatarStorageId;
     await ctx.db.patch("creators", creator._id, { avatarStorageId: undefined });
+    if (previous) {
+      await ctx.storage.delete(previous);
+    }
     return null;
   },
 });

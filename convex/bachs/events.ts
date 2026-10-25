@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { applyLedgerEntry } from "../ledger";
+import { applyLedgerEntry, settlePendingDonationEntries } from "../ledger";
 import { toMinorUnits } from "../lib/money";
 import {
   checkoutStateValidator,
@@ -225,15 +225,18 @@ export const processCheckoutEvent = internalMutation({
         status: "refunded",
         lastEventAt: Math.max(donation.lastEventAt ?? 0, args.eventCreatedAt),
       });
-      // Both entries stay pending so the settlement cron nets them out
-      // against the original (possibly already settled) donation entries.
+      // Settle any still-pending donation/fee entries first, then write the
+      // refund as settled too. The clawback therefore reduces
+      // `balanceAvailable` in this same transaction and can never be
+      // withdrawn while the refund entries are still pending.
+      await settlePendingDonationEntries(ctx, donation._id);
       await applyLedgerEntry(ctx, {
         creatorId: donation.creatorId,
         type: "refund",
         amount: -donation.amount,
         currency: donation.currency,
         donationId: donation._id,
-        settlementStatus: "pending",
+        settlementStatus: "settled",
       });
       await applyLedgerEntry(ctx, {
         creatorId: donation.creatorId,
@@ -241,7 +244,7 @@ export const processCheckoutEvent = internalMutation({
         amount: donation.platformFee,
         currency: donation.currency,
         donationId: donation._id,
-        settlementStatus: "pending",
+        settlementStatus: "settled",
       });
       const creator = await ctx.db.get("creators", donation.creatorId);
       if (creator) {
@@ -309,12 +312,6 @@ export const processCheckoutEvent = internalMutation({
       }
     }
 
-    // Out-of-order guard: never apply an event older than the last applied one.
-    if (donation.lastEventAt !== undefined && args.eventCreatedAt < donation.lastEventAt) {
-      await recordEvent(ctx, { ...recordBase, outcome: "stale" });
-      return { outcome: "stale" as const, donationId: donation._id };
-    }
-
     if (eventClass === "completion") {
       // The live state must actually show collected money. When it does not
       // yet (eventual consistency), DON'T record the event so the provider
@@ -326,6 +323,12 @@ export const processCheckoutEvent = internalMutation({
       if (!paidEnough) {
         return { outcome: "not_ready" as const, donationId: donation._id };
       }
+
+      // Do NOT apply the timestamp guard to a completion backed by live,
+      // collected money. An older `collection.succeeded` can legitimately
+      // arrive after a newer `checkout.expired`; the money was still
+      // collected, and ignoring it would leave a real payment unfulfilled.
+      // Status is monotonic: paid always beats unresolved.
       if (donation.status === "paid") {
         await recordEvent(ctx, { ...recordBase, outcome: "already_paid" });
         return { outcome: "already_paid" as const, donationId: donation._id };
@@ -373,6 +376,13 @@ export const processCheckoutEvent = internalMutation({
       });
       await recordEvent(ctx, { ...recordBase, outcome: "processed" });
       return { outcome: "processed" as const, donationId: donation._id };
+    }
+
+    // Out-of-order guard for non-completion states. A stale expiry/underpaid
+    // event must not overwrite a newer state.
+    if (donation.lastEventAt !== undefined && args.eventCreatedAt < donation.lastEventAt) {
+      await recordEvent(ctx, { ...recordBase, outcome: "stale" });
+      return { outcome: "stale" as const, donationId: donation._id };
     }
 
     if (eventClass === "expiry" || eventClass === "underpaid") {

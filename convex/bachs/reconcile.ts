@@ -29,11 +29,27 @@ export const reconcilePendingDonations = internalAction({
     if (resolvePaymentsDriver() !== "bachs") {
       return { checked: 0, processed: 0 };
     }
+    const now = Date.now();
+    // Terminalise anything past the window before reading the queue. This
+    // keeps old abandoned checkouts from consuming every batch.
+    await ctx.runMutation(internal.donations.abandonStaleDonations, { now });
+
     const stale = await ctx.runQuery(internal.donations.listStaleForReconcile, {
-      now: Date.now(),
+      now,
     });
     let processed = 0;
     for (const item of stale) {
+      if (!item.checkoutId) {
+        // No checkout id means the creation attempt is still being retried by
+        // `reconcileUncertainOperations` (or it failed definitively). Back off
+        // this row so it cannot block newer donations in the queue.
+        await ctx.runMutation(internal.donations.markReconcileAttempt, {
+          donationId: item.donationId,
+          now: Date.now(),
+        });
+        continue;
+      }
+
       const result = await ctx.runAction(internal.bachs.bachsNode.retrieveCheckout, {
         checkoutId: item.checkoutId,
       });
@@ -46,11 +62,21 @@ export const reconcilePendingDonations = internalAction({
             donationId: item.donationId,
           });
         }
+        await ctx.runMutation(internal.donations.markReconcileAttempt, {
+          donationId: item.donationId,
+          now: Date.now(),
+        });
         continue; // transient failures retry on the next run
       }
 
       const classification = classifyCheckoutState(result.state);
-      if (classification === "open") continue;
+      if (classification === "open") {
+        await ctx.runMutation(internal.donations.markReconcileAttempt, {
+          donationId: item.donationId,
+          now: Date.now(),
+        });
+        continue;
+      }
 
       const eventType =
         classification === "completion" ? "checkout.completed" : "checkout.expired";
@@ -70,6 +96,10 @@ export const reconcilePendingDonations = internalAction({
         },
       );
       if (outcome.outcome === "processed") processed += 1;
+      await ctx.runMutation(internal.donations.markReconcileAttempt, {
+        donationId: item.donationId,
+        now: Date.now(),
+      });
     }
     return { checked: stale.length, processed };
   },

@@ -1,7 +1,7 @@
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { applyLedgerEntry } from "./ledger";
+import { applyLedgerEntry, payoutableBalance } from "./ledger";
 import { connectEnabled, minPayoutMinor } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
@@ -14,6 +14,8 @@ import { fromMinorUnits } from "./lib/money";
  * withdrawals here and an admin fulfils them (see admin.markPayoutPaid).
  * Requesting reserves the amount immediately via a settled `payout` ledger
  * entry, so it can't be double-requested; a failed payout releases it again.
+ * Refunds are also settled immediately, so a clawed-back donation cannot be
+ * withdrawn. A negative available balance is recovered by future donations.
  *
  * Connect mode: money settles into each creator's own Bachs account, so this
  * request flow is disabled and the dashboard points creators at Bachs
@@ -58,7 +60,12 @@ export const request = mutation({
         `The minimum payout is ${fromMinorUnits(minimum, creator.currency)} ${creator.currency}.`,
       );
     }
-    if (args.amount > creator.balanceAvailable) {
+    // Positive pending donations are not withdrawable yet, and negative
+    // pending entries (refund clawbacks/adjustments) must reduce what is.
+    // A creator whose available balance went negative from a refund can only
+    // recover through future settled donations or an admin adjustment.
+    const withdrawable = payoutableBalance(creator);
+    if (args.amount > withdrawable) {
       throw appError("insufficient_available", "That is more than your available balance.");
     }
     const recent = await ctx.db

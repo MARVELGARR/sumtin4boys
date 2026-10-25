@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
   Check,
-  Coffee,
   Heart,
   Share2,
   ShieldCheck,

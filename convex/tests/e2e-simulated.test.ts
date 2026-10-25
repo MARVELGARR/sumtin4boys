@@ -7,6 +7,7 @@ import {
   forUser,
   makeCreatorWithUser,
   makeTest,
+  withEnv,
 } from "./helpers.test-utils";
 
 const VALID = {
@@ -111,6 +112,7 @@ describe("simulated end-to-end donation", () => {
       pending: 0,
       unresolved: 0,
       refunded: 0,
+      abandoned: 0,
       truncated: false,
     });
 
@@ -217,6 +219,60 @@ describe("simulated end-to-end donation", () => {
     // A different supporter email is unaffected.
     const other = await attempt("someone-else@test.com");
     expect(other.reference).toMatch(/^a4b_/);
+  });
+});
+
+describe("simulated checkout guardrails", () => {
+  it("does not fall back to fake payments when the explicit opt-in is missing", async () => {
+    const t = makeTest();
+    await makeCreatorWithUser(t, { username: "ada", coffeePrice: 50_000 });
+
+    await withEnv(
+      { PAYMENTS_DRIVER: "simulated", ALLOW_SIMULATED: "", BACHS_API_KEY: "" },
+      async () => {
+        const mode = await t.query(api.payments.mode, {});
+        expect(mode.driver).toBe("bachs");
+        expect(mode.checkoutReady).toBe(false);
+
+        await expect(t.action(api.donations.createCheckout, VALID)).rejects.toMatchObject({
+          data: { code: "payments_unavailable" },
+        });
+        expect(await t.run(async (ctx) => ctx.db.query("donations").collect())).toHaveLength(0);
+      },
+    );
+  });
+
+  it("requires both values before the simulated driver is active", async () => {
+    const t = makeTest();
+    await makeCreatorWithUser(t, { username: "ada", coffeePrice: 50_000 });
+
+    await withEnv(
+      { PAYMENTS_DRIVER: "simulated", ALLOW_SIMULATED: "true", BACHS_API_KEY: "" },
+      async () => {
+        const mode = await t.query(api.payments.mode, {});
+        expect(mode.driver).toBe("simulated");
+        expect(mode.checkoutReady).toBe(true);
+      },
+    );
+  });
+
+  it("never allows simulated payments in a production-labelled deployment", async () => {
+    const t = makeTest();
+    await makeCreatorWithUser(t, { username: "ada", coffeePrice: 50_000 });
+
+    await withEnv(
+      {
+        PAYMENTS_DRIVER: "simulated",
+        ALLOW_SIMULATED: "true",
+        BACHS_ENV: "production",
+        BACHS_API_KEY: "",
+      },
+      async () => {
+        const mode = await t.query(api.payments.mode, {});
+        expect(mode.driver).toBe("bachs");
+        expect(mode.checkoutReady).toBe(false);
+      },
+    );
   });
 });
 

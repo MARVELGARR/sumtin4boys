@@ -15,25 +15,61 @@ import { MIN_PAYOUT_MINOR_DEFAULT } from "./validation";
 export type PaymentsDriver = "bachs" | "simulated";
 
 /**
- * Which payment driver is active.
+ * Whether the fake payment driver is explicitly enabled for this deployment.
  *
- * - `PAYMENTS_DRIVER=simulated` -> always simulated (useful in dev even when
- *   sandbox keys exist).
- * - `PAYMENTS_DRIVER=bachs` -> always Bachs; checkouts fail loudly if
- *   `BACHS_API_KEY` is missing, which is what you want in production.
- * - unset -> Bachs when `BACHS_API_KEY` is present, simulated otherwise.
+ * Simulated payments are deliberately opt-in. Setting `PAYMENTS_DRIVER` alone
+ * is not enough: a missing/rotated Bachs key must never silently turn the
+ * deployment into fake-payments mode. Dev deployments should set both:
+ *
+ *   PAYMENTS_DRIVER=simulated
+ *   ALLOW_SIMULATED=true
+ */
+export function simulatedPaymentsAllowed(): boolean {
+  const looksLikeProduction =
+    env.BACHS_ENV === "production" || Boolean(env.BACHS_API_KEY?.startsWith("sk_live_"));
+  if (looksLikeProduction) return false;
+  return env.PAYMENTS_DRIVER === "simulated" && env.ALLOW_SIMULATED === "true";
+}
+
+/**
+ * Which payment driver is active. Fails closed to Bachs.
+ *
+ * - Both `PAYMENTS_DRIVER=simulated` and `ALLOW_SIMULATED=true` -> simulated.
+ * - Everything else -> Bachs. If `BACHS_API_KEY` is missing, checkout creation
+ *   fails loudly with `payments_unavailable`; it never falls back to fake money.
  */
 export function resolvePaymentsDriver(): PaymentsDriver {
-  if (env.PAYMENTS_DRIVER === "simulated") return "simulated";
-  if (env.PAYMENTS_DRIVER === "bachs") return "bachs";
-  return env.BACHS_API_KEY ? "bachs" : "simulated";
+  return simulatedPaymentsAllowed() ? "simulated" : "bachs";
+}
+
+/**
+ * Turnstile is enforced whenever a secret is present. Production also requires
+ * it, so a missing key fails closed instead of silently accepting unverified
+ * checkout traffic.
+ */
+export function turnstileRequired(): boolean {
+  return Boolean(env.TURNSTILE_SECRET_KEY) || bachsEnvironment() === "production";
+}
+
+export function turnstileSecretKey(): string | undefined {
+  return env.TURNSTILE_SECRET_KEY;
+}
+
+export function turnstileSiteKey(): string | undefined {
+  return env.TURNSTILE_SITE_KEY;
+}
+
+/** Both keys must be present before checkout is considered usable. */
+export function turnstileConfigured(): boolean {
+  if (!turnstileRequired()) return true;
+  return Boolean(env.TURNSTILE_SECRET_KEY && env.TURNSTILE_SITE_KEY);
 }
 
 /** Whether checkouts can actually be created right now. */
 export function paymentsConfigured(): boolean {
   const driver = resolvePaymentsDriver();
-  if (driver === "simulated") return true;
-  return Boolean(env.BACHS_API_KEY);
+  if (driver === "simulated") return turnstileConfigured();
+  return Boolean(env.BACHS_API_KEY) && turnstileConfigured();
 }
 
 export function bachsEnvironment(): "sandbox" | "production" {

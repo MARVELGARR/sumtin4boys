@@ -14,6 +14,7 @@ import {
 } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
+import { verifyTurnstileToken } from "./lib/turnstile";
 import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
@@ -42,12 +43,19 @@ const RECONCILE_AFTER_MS = 30 * 60 * 1000;
 const STUCK_OPERATION_AFTER_MS = 5 * 60 * 1000;
 /** Give up replaying an uncertain checkout write after this many attempts. */
 const MAX_CHECKOUT_ATTEMPTS = 8;
+/** Stop reconciling donations older than this; move them to "abandoned". */
+const RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Reconcile queue batch size per status per cron run. */
+const RECONCILE_BATCH_SIZE = 30;
+/** Cap the exponential backoff between reconcile attempts. */
+const RECONCILE_MAX_BACKOFF_MS = 6 * 60 * 60 * 1000;
 
 const donationStatusValidator = v.union(
   v.literal("pending"),
   v.literal("paid"),
   v.literal("unresolved"),
   v.literal("refunded"),
+  v.literal("abandoned"),
 );
 
 /** Full donation row as shown to the owning creator. */
@@ -186,8 +194,19 @@ export const startCheckout = internalMutation({
         { retryAfterMs: creatorLimit.retryAfter },
       );
     }
+    const globalLimit = await rateLimiter.limit(ctx, "createCheckoutGlobal", {
+      key: "all",
+    });
+    if (!globalLimit.ok) {
+      throw appError(
+        "rate_limited",
+        "Support is unusually busy right now — please try again shortly.",
+        { retryAfterMs: globalLimit.retryAfter },
+      );
+    }
 
-    const amount = creator.coffeePrice * quantity;
+    const breadPrice = creator.coffeePrice;
+    const amount = breadPrice * quantity;
     if (!Number.isSafeInteger(amount) || amount <= 0) {
       throw appError("invalid_input", "That amount is out of range.");
     }
@@ -212,6 +231,8 @@ export const startCheckout = internalMutation({
       driver,
       status: "pending",
       createdAt: now,
+      reconcileAttempts: 0,
+      nextReconcileAt: now + RECONCILE_AFTER_MS,
     });
     await ctx.db.insert("apiOperations", {
       key: checkoutIdempotencyKey(reference),
@@ -313,7 +334,13 @@ export const markOperationFailed = internalMutation({
     if (donationId) {
       const donation = await ctx.db.get("donations", donationId);
       if (donation && donation.status === "pending") {
-        await ctx.db.patch("donations", donation._id, { status: "unresolved" });
+        // A definitive provider failure means no checkout exists, so there is
+        // no payment to reconcile. Terminalise it instead of filling the
+        // reconcile queue with rows that can never produce a checkout.
+        await ctx.db.patch("donations", donation._id, {
+          status: "abandoned",
+          abandonedAt: Date.now(),
+        });
       }
     }
     return null;
@@ -348,6 +375,8 @@ export const createCheckout = action({
     supporterEmail: v.string(),
     message: v.optional(v.string()),
     isPrivate: v.boolean(),
+    /** Cloudflare Turnstile token; required when Turnstile is configured. */
+    turnstileToken: v.optional(v.string()),
   },
   returns: v.union(
     v.object({
@@ -367,7 +396,15 @@ export const createCheckout = action({
     | { status: "redirect"; url: string; reference: string }
     | { status: "unknown"; reference: string }
   > => {
-    const started = await ctx.runMutation(internal.donations.startCheckout, args);
+    const { turnstileToken, ...checkoutArgs } = args;
+    // Verify before creating a donation row or payment-provider operation, so
+    // a failed challenge cannot leave billable/retryable state behind.
+    await verifyTurnstileToken(turnstileToken);
+
+    const started = await ctx.runMutation(
+      internal.donations.startCheckout,
+      checkoutArgs,
+    );
 
     if (started.driver === "simulated") {
       const url = `${appUrl()}/simulated-checkout?ref=${encodeURIComponent(started.reference)}`;
@@ -471,7 +508,17 @@ export const settleCheckoutRetry = internalMutation({
     if (donationId) {
       const donation = await ctx.db.get("donations", donationId);
       if (donation && donation.status === "pending") {
-        await ctx.db.patch("donations", donation._id, { status: "unresolved" });
+        if (args.outcomeUnknown) {
+          // We exhausted retries without learning the outcome. Keep it
+          // unresolved for manual review; the bounded cleanup will eventually
+          // move it to abandoned.
+          await ctx.db.patch("donations", donation._id, { status: "unresolved" });
+        } else {
+          await ctx.db.patch("donations", donation._id, {
+            status: "abandoned",
+            abandonedAt: Date.now(),
+          });
+        }
       }
     }
     return null;
@@ -482,41 +529,165 @@ export const settleCheckoutRetry = internalMutation({
 // Internal: reconciliation support
 // ---------------------------------------------------------------------------
 
-/** Pending/unresolved donations old enough to double-check against Bachs. */
+/**
+ * Pending/unresolved donations due for a provider re-check.
+ *
+ * The queue is driven by `nextReconcileAt`, not by repeatedly selecting the
+ * oldest rows. Each attempt pushes a row into the future, so a handful of
+ * abandoned checkouts can no longer starve newer donations. The query is
+ * also bounded to the last 7 days; older rows are terminalised by
+ * `abandonStaleDonations`.
+ */
 export const listStaleForReconcile = internalQuery({
   args: { now: v.number() },
   returns: v.array(
     v.object({
       donationId: v.id("donations"),
-      checkoutId: v.string(),
+      checkoutId: v.optional(v.string()),
       reference: v.string(),
       status: v.string(),
+      reconcileAttempts: v.number(),
+      createdAt: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
-    const cutoff = args.now - RECONCILE_AFTER_MS;
-    const pending = await ctx.db
-      .query("donations")
-      .withIndex("by_status_createdAt", (q) =>
-        q.eq("status", "pending").lt("createdAt", cutoff),
-      )
-      .order("asc")
-      .take(15);
-    const unresolved = await ctx.db
-      .query("donations")
-      .withIndex("by_status_createdAt", (q) =>
-        q.eq("status", "unresolved").lt("createdAt", cutoff),
-      )
-      .order("asc")
-      .take(15);
-    return [...pending, ...unresolved]
-      .filter((donation) => Boolean(donation.checkoutId))
+    const windowStart = args.now - RECONCILE_WINDOW_MS;
+    const statuses = ["pending", "unresolved"] as const;
+
+    const due = await Promise.all(
+      statuses.map((status) =>
+        ctx.db
+          .query("donations")
+          .withIndex("by_status_nextReconcileAt", (q) =>
+            q.eq("status", status).lte("nextReconcileAt", args.now),
+          )
+          // Filter in the query, before `.take()`: a backlog of rows older
+          // than the 7-day window must not consume the batch and hide fresh
+          // rows behind it. Old rows are terminalised separately.
+          .filter((q) => q.gte(q.field("createdAt"), windowStart))
+          .order("asc")
+          .take(RECONCILE_BATCH_SIZE),
+      ),
+    );
+
+    // Rows created before the reconciliation fields existed have no
+    // `nextReconcileAt`. Find them through the bounded created-at index and
+    // enqueue them on their first pass.
+    const legacy = await Promise.all(
+      statuses.map(async (status) => {
+        return await ctx.db
+          .query("donations")
+          .withIndex("by_status_createdAt", (q) =>
+            q.eq("status", status).gte("createdAt", windowStart),
+          )
+          // Filter before `.take()` so rows beyond the first page of legacy
+          // data are still discovered after earlier rows are queued.
+          .filter((q) => q.eq(q.field("nextReconcileAt"), undefined))
+          .order("asc")
+          .take(RECONCILE_BATCH_SIZE * 4);
+      }),
+    );
+
+    const byId = new Map<Id<"donations">, (typeof due)[number][number]>();
+    for (const row of [...due.flat(), ...legacy.flat()]) {
+      if (row.createdAt >= windowStart && !byId.has(row._id)) byId.set(row._id, row);
+    }
+
+    return [...byId.values()]
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, RECONCILE_BATCH_SIZE * 2)
       .map((donation) => ({
         donationId: donation._id,
-        checkoutId: donation.checkoutId as string,
+        checkoutId: donation.checkoutId,
         reference: donation.reference,
         status: donation.status,
+        reconcileAttempts: donation.reconcileAttempts ?? 0,
+        createdAt: donation.createdAt,
       }));
+  },
+});
+
+/**
+ * Record one reconciliation attempt and schedule the next one with
+ * exponential backoff. A processed donation leaves the queue because its
+ * status changes to paid/refunded/abandoned.
+ */
+export const markReconcileAttempt = internalMutation({
+  args: { donationId: v.id("donations"), now: v.number() },
+  returns: v.object({ attempts: v.number(), nextReconcileAt: v.number() }),
+  handler: async (ctx, args) => {
+    const donation = await ctx.db.get("donations", args.donationId);
+    if (!donation || donation.status === "paid" || donation.status === "refunded" || donation.status === "abandoned") {
+      return { attempts: donation?.reconcileAttempts ?? 0, nextReconcileAt: args.now };
+    }
+    const attempts = (donation.reconcileAttempts ?? 0) + 1;
+    const backoff = Math.min(
+      RECONCILE_MAX_BACKOFF_MS,
+      RECONCILE_AFTER_MS * 2 ** Math.min(attempts - 1, 8),
+    );
+    const nextReconcileAt = args.now + backoff;
+    await ctx.db.patch("donations", donation._id, {
+      reconcileAttempts: attempts,
+      lastReconciledAt: args.now,
+      nextReconcileAt,
+    });
+    return { attempts, nextReconcileAt };
+  },
+});
+
+/** Terminalise a single donation that is too old for the reconcile window. */
+export const abandonDonation = internalMutation({
+  args: { donationId: v.id("donations"), now: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const donation = await ctx.db.get("donations", args.donationId);
+    if (
+      donation &&
+      (donation.status === "pending" || donation.status === "unresolved")
+    ) {
+      await ctx.db.patch("donations", donation._id, {
+        status: "abandoned",
+        abandonedAt: args.now,
+        nextReconcileAt: undefined,
+        lastReconciledAt: args.now,
+      });
+    }
+    return null;
+  },
+});
+
+/**
+ * Daily safety valve: rows still pending/unresolved after the 7-day window
+ * leave the queue permanently. They remain visible for manual review rather
+ * than being retried forever.
+ */
+export const abandonStaleDonations = internalMutation({
+  args: { now: v.optional(v.number()) },
+  returns: v.object({ abandoned: v.number() }),
+  handler: async (ctx, args) => {
+    const now = args.now ?? Date.now();
+    const cutoff = now - RECONCILE_WINDOW_MS;
+    const statuses = ["pending", "unresolved"] as const;
+    let abandoned = 0;
+    for (const status of statuses) {
+      const rows = await ctx.db
+        .query("donations")
+        .withIndex("by_status_createdAt", (q) =>
+          q.eq("status", status).lt("createdAt", cutoff),
+        )
+        .order("asc")
+        .take(RECONCILE_BATCH_SIZE * 4);
+      for (const donation of rows) {
+        await ctx.db.patch("donations", donation._id, {
+          status: "abandoned",
+          abandonedAt: now,
+          nextReconcileAt: undefined,
+          lastReconciledAt: now,
+        });
+        abandoned += 1;
+      }
+    }
+    return { abandoned };
   },
 });
 
@@ -727,13 +898,16 @@ export const getMyStats = query({
       pending: v.number(),
       unresolved: v.number(),
       refunded: v.number(),
+      abandoned: v.number(),
       truncated: v.boolean(),
     }),
   }),
   handler: async (ctx) => {
     const { creator } = await requireCreator(ctx);
     const CAP = 500;
-    const countStatus = async (status: "paid" | "pending" | "unresolved" | "refunded") => {
+    const countStatus = async (
+      status: "paid" | "pending" | "unresolved" | "refunded" | "abandoned",
+    ) => {
       const rows = await ctx.db
         .query("donations")
         .withIndex("by_creator_status", (q) =>
@@ -742,13 +916,16 @@ export const getMyStats = query({
         .take(CAP + 1);
       return rows.length;
     };
-    const [paid, pending, unresolved, refunded] = await Promise.all([
+    const [paid, pending, unresolved, refunded, abandoned] = await Promise.all([
       countStatus("paid"),
       countStatus("pending"),
       countStatus("unresolved"),
       countStatus("refunded"),
+      countStatus("abandoned"),
     ]);
-    const truncated = [paid, pending, unresolved, refunded].some((count) => count > CAP);
+    const truncated = [paid, pending, unresolved, refunded, abandoned].some(
+      (count) => count > CAP,
+    );
     return {
       currency: creator.currency,
       totals: {
@@ -765,6 +942,7 @@ export const getMyStats = query({
         pending: Math.min(pending, CAP),
         unresolved: Math.min(unresolved, CAP),
         refunded: Math.min(refunded, CAP),
+        abandoned: Math.min(abandoned, CAP),
         truncated,
       },
     };

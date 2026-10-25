@@ -136,7 +136,7 @@ export default function DashboardOverviewPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent supporters</CardTitle>
-          <CardDescription>Your latest coffees.</CardDescription>
+          <CardDescription>Your latest bread.</CardDescription>
           <CardAction>
             <Button asChild variant="ghost" size="sm">
               <Link href="/dashboard/supporters">View all</Link>
@@ -158,7 +158,7 @@ export default function DashboardOverviewPage() {
                 </EmptyMedia>
                 <EmptyTitle>No supporters yet</EmptyTitle>
                 <EmptyDescription>
-                  Share your link to get your first coffee.
+                  Share your link to get your first bread.
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>

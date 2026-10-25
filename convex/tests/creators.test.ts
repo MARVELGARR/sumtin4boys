@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
-import { MIN_COFFEE_PRICE_MINOR } from "../lib/validation";
+import { MIN_BREAD_PRICE_MINOR } from "../lib/validation";
 import {
   forUser,
   makeCreatorWithUser,
@@ -29,7 +29,8 @@ describe("creators.claimUsername", () => {
     expect(creator).not.toBeNull();
     expect(creator?.userId).toBe(userId);
     expect(creator?.displayName).toBe("Ada Lovelace");
-    expect(creator?.coffeePrice).toBe(MIN_COFFEE_PRICE_MINOR * 10);
+    // Persisted field keeps its historical name until the migration.
+    expect(creator?.coffeePrice).toBe(MIN_BREAD_PRICE_MINOR * 10);
     expect(creator?.currency).toBe("NGN");
     expect(creator?.status).toBe("active");
     expect(creator?.balancePending).toBe(0);
@@ -42,6 +43,7 @@ describe("creators.claimUsername", () => {
     const mine = await forUser(t, userId).query(api.creators.getMyCreator, {});
     expect(mine.viewer.email).toBe("creator@test.com");
     expect(mine.creator?.username).toBe("adalovelace");
+    expect(mine.creator?.breadPrice).toBe(MIN_BREAD_PRICE_MINOR * 10);
     expect(mine.creator?.sellerConnected).toBe(false);
   });
 

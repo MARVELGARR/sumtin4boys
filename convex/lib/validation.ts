@@ -13,10 +13,19 @@ export const SUPPORTER_NAME_MAX_LENGTH = 60;
 export const MESSAGE_MAX_LENGTH = 280;
 export const MAX_QUANTITY = 10;
 
-/** Smallest price for one coffee, minor units: ₦100.00. */
-export const MIN_COFFEE_PRICE_MINOR = 10_000;
-/** Largest price for one coffee, minor units: ₦1,000,000.00. */
-export const MAX_COFFEE_PRICE_MINOR = 100_000_000;
+/** Avatar formats we can safely serve as images (no SVG/HTML uploads). */
+export const ALLOWED_AVATAR_CONTENT_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
+/** Maximum avatar upload size: 2 MB. */
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+/** Smallest price for one bread, minor units: ₦100.00. */
+export const MIN_BREAD_PRICE_MINOR = 10_000;
+/** Largest price for one bread, minor units: ₦1,000,000.00. */
+export const MAX_BREAD_PRICE_MINOR = 100_000_000;
 /** Default payout minimum, minor units (₦1,000.00). Overridable via env. */
 export const MIN_PAYOUT_MINOR_DEFAULT = 100_000;
 

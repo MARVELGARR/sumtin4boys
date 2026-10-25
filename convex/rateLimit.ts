@@ -6,7 +6,7 @@
  * calling an action differently.
  */
 
-import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
+import { HOUR, MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { components } from "./_generated/api";
 
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
@@ -17,11 +17,36 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 5,
   },
-  /** Per creator page: a generous ceiling that protects a single page's feeds. */
+  /**
+   * Per creator page: a high ceiling. This is deliberately much higher than
+   * the per-email bucket so one rapid supporter cannot lock out a creator's
+   * real audience. The global bucket is the backstop for distributed floods.
+   */
   createCheckoutPerCreator: {
     kind: "token bucket",
-    rate: 30,
+    rate: 120,
     period: MINUTE,
-    capacity: 30,
+    capacity: 120,
+  },
+  /** Deployment-wide ceiling for checkout creation. */
+  createCheckoutGlobal: {
+    kind: "token bucket",
+    rate: 600,
+    period: MINUTE,
+    capacity: 600,
+  },
+  /** Contact form: slow humans, not a bulk-messaging endpoint. */
+  contactPerEmail: {
+    kind: "token bucket",
+    rate: 3,
+    period: HOUR,
+    capacity: 3,
+  },
+  /** Deployment-wide backstop against a distributed contact-form flood. */
+  contactGlobal: {
+    kind: "token bucket",
+    rate: 60,
+    period: HOUR,
+    capacity: 60,
   },
 });

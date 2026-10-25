@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalAction, internalQuery } from "./_generated/server";
 import { appUrl, emailFrom, resendApiKey } from "./lib/config";
 import { formatMoney } from "./lib/money";
+import { sendResendEmail } from "./lib/resend";
 
 /**
  * Email notifications.
@@ -57,32 +58,6 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-async function sendEmail(args: {
-  apiKey: string;
-  from: string;
-  to: string;
-  subject: string;
-  html: string;
-}): Promise<void> {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${args.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: args.from,
-      to: [args.to],
-      subject: args.subject,
-      html: args.html,
-    }),
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Resend responded ${response.status}: ${body.slice(0, 300)}`);
-  }
-}
-
 export const notifyDonationPaid = internalAction({
   args: { donationId: v.id("donations") },
   returns: v.null(),
@@ -101,21 +76,21 @@ export const notifyDonationPaid = internalAction({
       return null;
     }
 
-    const coffeeWord = data.quantity === 1 ? "coffee" : "coffees";
+    const breadWord = data.quantity === 1 ? "bread" : "breads";
     const thanksUrl = `${appUrl()}/thanks?ref=${encodeURIComponent(data.reference)}`;
     const profileUrl = `${appUrl()}/${data.creatorUsername}`;
 
     try {
-      await sendEmail({
+      await sendResendEmail({
         apiKey,
         from,
         to: data.supporterEmail,
-        subject: `Your ${coffeeWord} for ${data.creatorDisplayName} is confirmed ☕`,
+        subject: `Your support for ${data.creatorDisplayName} is confirmed 🍞`,
         html: `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-            <h2>Thank you, ${escapeHtml(data.supporterName)}! ☕</h2>
+            <h2>Thank you, ${escapeHtml(data.supporterName)}! 🍞</h2>
             <p>
-              You bought <strong>${data.quantity} ${coffeeWord}</strong>
+              You tore <strong>${data.quantity} ${breadWord}</strong>
               (${escapeHtml(data.amountLabel)}) for
               <strong>@${escapeHtml(data.creatorUsername)}</strong>.
             </p>
@@ -138,17 +113,17 @@ export const notifyDonationPaid = internalAction({
       });
 
       if (data.creatorEmail) {
-        await sendEmail({
+        await sendResendEmail({
           apiKey,
           from,
           to: data.creatorEmail,
-          subject: `${data.supporterName} bought you ${data.quantity} ${coffeeWord}! ☕`,
+          subject: `${data.supporterName} tore you ${data.quantity} ${breadWord}! 🍞`,
           html: `
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
               <h2>New support for @${escapeHtml(data.creatorUsername)}</h2>
               <p>
-                <strong>${escapeHtml(data.supporterName)}</strong> bought
-                <strong>${data.quantity} ${coffeeWord}</strong>
+                <strong>${escapeHtml(data.supporterName)}</strong> tore
+                <strong>${data.quantity} ${breadWord}</strong>
                 (${escapeHtml(data.amountLabel)}).
               </p>
               ${

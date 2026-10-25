@@ -49,6 +49,23 @@
 }
 
 :root {
+  /*
+   * Toy illustration accents, pulled from the same teal/neutral palette as
+   * the creator dashboard. Bread itself stays warm gold so it still reads as
+   * bread, but every UI surface uses the original app theme.
+   */
+  --toy-ink: oklch(0.148 0.004 228.8);
+  --toy-cream: oklch(1 0 0);
+  --toy-paper: oklch(1 0 0);
+  --toy-lime: oklch(0.855 0.138 181.071);
+  --toy-ochre: oklch(0.704 0.14 182.503);
+  --toy-bread: #f4c45e;
+  --toy-bread-dark: #b45309;
+  --toy-coral: oklch(0.577 0.245 27.325);
+  --toy-leaf: oklch(0.511 0.096 186.391);
+  --toy-indigo: oklch(0.6 0.118 184.704);
+  --toy-pink: oklch(0.704 0.191 22.216);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.148 0.004 228.8);
   --card: oklch(1 0 0);
@@ -131,6 +148,44 @@
   }
 }
 
+/* Rounded display face for landing/supporter headings. */
+.font-toy {
+  font-family: var(--font-toy), var(--font-sans), ui-sans-serif, system-ui,
+    sans-serif;
+  letter-spacing: -0.015em;
+}
+
+/* Chunky sticker frame used by the toy icon set. */
+.toy-sticker {
+  border: 3px solid var(--toy-ink);
+  border-radius: 1.1rem;
+  box-shadow: 0 4px 0 var(--toy-ink);
+}
+
+.toy-card {
+  border: 2px solid color-mix(in oklab, var(--toy-ink) 14%, transparent);
+  box-shadow: 0 6px 0 color-mix(in oklab, var(--toy-ink) 10%, transparent);
+}
+
+.ankara-ribbon {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--toy-leaf) 0 10px,
+    var(--toy-lime) 10px 20px,
+    var(--toy-bread) 20px 30px,
+    var(--toy-indigo) 30px 40px
+  );
+}
+
+.paper-dots {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--toy-ink) 8%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 18px 18px;
+}
+
 /* Hide scrollbars on touch-scrollable rows (tabs, filter pills). */
 @utility scrollbar-none {
   scrollbar-width: none;
@@ -204,6 +259,16 @@
   50% { transform: translateY(-12px); }
 }
 
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
 .animate-float {
   animation: float 8s ease-in-out infinite;
 }
@@ -218,6 +283,18 @@
 
 .animate-bounce-slow {
   animation: bounce-slow 3s ease-in-out infinite;
+}
+
+.animate-marquee {
+  animation: marquee 48s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.animate-wiggle:hover {
+  animation: wiggle 0.35s ease-in-out 2;
 }
 
 /* Staggered delays for fade-in-up */
@@ -252,6 +329,8 @@
   .animate-float-delayed,
   .animate-fade-in-up,
   .animate-bounce-slow,
+  .animate-marquee,
+  .animate-wiggle,
   .hero-gradient-text {
     animation: none !important;
   }

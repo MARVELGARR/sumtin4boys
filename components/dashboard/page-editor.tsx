@@ -48,10 +48,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ALLOWED_AVATAR_CONTENT_TYPES,
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
-  MAX_COFFEE_PRICE_MINOR,
-  MIN_COFFEE_PRICE_MINOR,
+  MAX_AVATAR_BYTES,
+  MAX_BREAD_PRICE_MINOR,
+  MIN_BREAD_PRICE_MINOR,
   SUPPORTED_CURRENCIES,
   appErrorMessage,
   formatMoney,
@@ -63,7 +65,7 @@ import {
 type ProfilePatch = {
   displayName?: string;
   bio?: string | null;
-  coffeePrice?: number;
+  breadPrice?: number;
   currency?: string;
   goalAmount?: number | null;
 };
@@ -71,8 +73,6 @@ type ProfilePatch = {
 type MyCreator = NonNullable<
   FunctionReturnType<typeof api.creators.getMyCreator>["creator"]
 >;
-
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export function PageEditor() {
   const data = useQuery(api.creators.getMyCreator, {});
@@ -94,8 +94,8 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
 
   const [displayName, setDisplayName] = useState(creator.displayName);
   const [bio, setBio] = useState(creator.bio ?? "");
-  const [coffeePriceInput, setCoffeePriceInput] = useState(() =>
-    fromMinorUnits(creator.coffeePrice, creator.currency),
+  const [breadPriceInput, setBreadPriceInput] = useState(() =>
+    fromMinorUnits(creator.breadPrice, creator.currency),
   );
   const [currency, setCurrency] = useState<string>(creator.currency);
   const [goalInput, setGoalInput] = useState(() =>
@@ -106,7 +106,7 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
 
   const [errors, setErrors] = useState<{
     displayName?: string;
-    coffeePrice?: string;
+    breadPrice?: string;
     goalAmount?: string;
   }>({});
   const [saving, setSaving] = useState(false);
@@ -121,12 +121,14 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
     event.target.value = "";
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Choose an image file (PNG, JPG, …).");
+    if (
+      !(ALLOWED_AVATAR_CONTENT_TYPES as readonly string[]).includes(file.type)
+    ) {
+      toast.error("Choose a PNG, JPEG or WebP image.");
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      toast.error("Images must be 2MB or smaller.");
+      toast.error("Images must be 2 MB or smaller.");
       return;
     }
 
@@ -171,17 +173,17 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
       nextErrors.displayName = `Keep it to ${DISPLAY_NAME_MAX_LENGTH} characters or fewer.`;
     }
 
-    const coffeePrice = parseMajorAmount(coffeePriceInput, currency);
-    if (coffeePrice === null) {
-      nextErrors.coffeePrice = "Enter a valid amount.";
+    const breadPrice = parseMajorAmount(breadPriceInput, currency);
+    if (breadPrice === null) {
+      nextErrors.breadPrice = "Enter a valid amount.";
     } else if (
-      coffeePrice < MIN_COFFEE_PRICE_MINOR ||
-      coffeePrice > MAX_COFFEE_PRICE_MINOR
+      breadPrice < MIN_BREAD_PRICE_MINOR ||
+      breadPrice > MAX_BREAD_PRICE_MINOR
     ) {
-      nextErrors.coffeePrice = `Price must be between ${formatMoney(
-        MIN_COFFEE_PRICE_MINOR,
+      nextErrors.breadPrice = `Price must be between ${formatMoney(
+        MIN_BREAD_PRICE_MINOR,
         currency,
-      )} and ${formatMoney(MAX_COFFEE_PRICE_MINOR, currency)}.`;
+      )} and ${formatMoney(MAX_BREAD_PRICE_MINOR, currency)}.`;
     }
 
     const trimmedGoal = goalInput.trim();
@@ -190,9 +192,9 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
       const parsed = parseMajorAmount(trimmedGoal, currency);
       if (parsed === null) {
         nextErrors.goalAmount = "Enter a valid amount.";
-      } else if (parsed < MIN_COFFEE_PRICE_MINOR) {
+      } else if (parsed < MIN_BREAD_PRICE_MINOR) {
         nextErrors.goalAmount = `Goals start at ${formatMoney(
-          MIN_COFFEE_PRICE_MINOR,
+          MIN_BREAD_PRICE_MINOR,
           currency,
         )}.`;
       } else {
@@ -218,8 +220,8 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
       patch.bio = trimmedBio === "" ? null : trimmedBio;
     }
 
-    if (coffeePrice !== null && coffeePrice !== creator.coffeePrice) {
-      patch.coffeePrice = coffeePrice;
+    if (breadPrice !== null && breadPrice !== creator.breadPrice) {
+      patch.breadPrice = breadPrice;
     }
 
     if (currency !== creator.currency) {
@@ -256,7 +258,7 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Page editor</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Update how your page looks and what a coffee costs.
+            Update how your page looks and what a bread costs.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -271,7 +273,7 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
         <CardHeader>
           <CardTitle>Avatar</CardTitle>
           <CardDescription>
-            A square image works best. Up to 2MB.
+            A square PNG, JPEG or WebP works best. Up to 2 MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
@@ -284,7 +286,7 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Input
               type="file"
-              accept="image/*"
+              accept={ALLOWED_AVATAR_CONTENT_TYPES.join(",")}
               aria-label="Upload avatar"
               className="w-full max-w-full sm:max-w-64"
               disabled={uploading || removingAvatar}
@@ -369,20 +371,20 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field data-invalid={Boolean(errors.coffeePrice)}>
-                <FieldLabel htmlFor="coffee-price">Coffee price</FieldLabel>
+              <Field data-invalid={Boolean(errors.breadPrice)}>
+                <FieldLabel htmlFor="bread-price">Bread price</FieldLabel>
                 <Input
-                  id="coffee-price"
+                  id="bread-price"
                   inputMode="decimal"
-                  value={coffeePriceInput}
-                  aria-invalid={Boolean(errors.coffeePrice)}
-                  onChange={(event) => setCoffeePriceInput(event.target.value)}
+                  value={breadPriceInput}
+                  aria-invalid={Boolean(errors.breadPrice)}
+                  onChange={(event) => setBreadPriceInput(event.target.value)}
                 />
                 <FieldDescription>
-                  {formatMoney(MIN_COFFEE_PRICE_MINOR, currency)} –{" "}
-                  {formatMoney(MAX_COFFEE_PRICE_MINOR, currency)}
+                  {formatMoney(MIN_BREAD_PRICE_MINOR, currency)} –{" "}
+                  {formatMoney(MAX_BREAD_PRICE_MINOR, currency)}
                 </FieldDescription>
-                <FieldError>{errors.coffeePrice}</FieldError>
+                <FieldError>{errors.breadPrice}</FieldError>
               </Field>
 
               <Field>

@@ -30,9 +30,14 @@ export async function makeUser(
   t: Test,
   email: string,
   name?: string,
+  options: { emailVerified?: boolean } = {},
 ): Promise<Id<"users">> {
   return await t.run(async (ctx) =>
-    ctx.db.insert("users", { email, ...(name !== undefined ? { name } : {}) }),
+    ctx.db.insert("users", {
+      email,
+      ...(name !== undefined ? { name } : {}),
+      ...(options.emailVerified ? { emailVerificationTime: Date.now() } : {}),
+    }),
   );
 }
 
@@ -122,6 +127,8 @@ export interface SeedDonationInput {
   supporterName?: string;
   isPrivate?: boolean;
   createdAt?: number;
+  nextReconcileAt?: number;
+  reconcileAttempts?: number;
 }
 
 /**
@@ -150,6 +157,8 @@ export async function seedDonation(t: Test, input: SeedDonationInput) {
       checkoutId: input.checkoutId,
       status: input.status ?? "pending",
       createdAt: input.createdAt ?? Date.now(),
+      reconcileAttempts: input.reconcileAttempts ?? 0,
+      nextReconcileAt: input.nextReconcileAt,
     }),
   );
   return { donationId, reference, amount, platformFee, netAmount: amount - platformFee, currency };

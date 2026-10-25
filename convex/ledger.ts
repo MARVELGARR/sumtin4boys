@@ -75,6 +75,61 @@ export async function applyLedgerEntry(
   return entryId;
 }
 
+/**
+ * Move any still-pending entries for one donation into `settled` immediately.
+ *
+ * Used when a refund arrives before the normal settlement hold has elapsed:
+ * the original donation/fee must stop sitting in `pending` while the refund
+ * is settled, otherwise the creator can briefly have a positive pending
+ * balance that does not correspond to money they are entitled to.
+ */
+export async function settlePendingDonationEntries(
+  ctx: MutationCtx,
+  donationId: Id<"donations">,
+): Promise<void> {
+  const entries = await ctx.db
+    .query("ledgerEntries")
+    .withIndex("by_donation", (q) => q.eq("donationId", donationId))
+    .collect();
+  const pending = entries.filter((entry) => entry.settlementStatus === "pending");
+  if (pending.length === 0) return;
+
+  const deltas = new Map<Id<"creators">, number>();
+  for (const entry of pending) {
+    deltas.set(entry.creatorId, (deltas.get(entry.creatorId) ?? 0) + entry.amount);
+  }
+
+  const now = Date.now();
+  for (const entry of pending) {
+    await ctx.db.patch("ledgerEntries", entry._id, {
+      settlementStatus: "settled",
+      settledAt: now,
+    });
+  }
+  for (const [creatorId, delta] of deltas) {
+    const creator = await ctx.db.get("creators", creatorId);
+    if (!creator) continue;
+    await ctx.db.patch("creators", creatorId, {
+      balancePending: creator.balancePending - delta,
+      balanceAvailable: creator.balanceAvailable + delta,
+    });
+  }
+}
+
+/**
+ * Amount a creator may actually withdraw.
+ *
+ * `balanceAvailable` is normally the answer, but negative pending entries
+ * (for example an adjustment or a refund clawback) must reduce it. Positive
+ * pending entries are not spendable until they settle. A refund can therefore
+ * push `balanceAvailable` negative, and future settled donations recover it.
+ */
+export function payoutableBalance(
+  creator: Pick<Doc<"creators">, "balanceAvailable" | "balancePending">,
+): number {
+  return creator.balanceAvailable + Math.min(0, creator.balancePending);
+}
+
 const SETTLE_BATCH_SIZE = 200;
 
 /**

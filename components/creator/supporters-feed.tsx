@@ -1,6 +1,17 @@
+"use client";
+
+import { useState } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
+import { AnkaraPattern } from "@/components/brand/ankara-pattern";
+import {
+  BreadBuddy,
+  HeartBuddy,
+  MessageBuddy,
+} from "@/components/brand/toy-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,13 +19,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Empty, EmptyTitle } from "@/components/ui/empty";
 import { formatMoney, formatRelativeTime } from "@/lib/format";
 
 type PublicDonation =
   FunctionReturnType<typeof api.creators.getByUsername>["recentDonations"][number];
 
-/** Recent public (non-private) paid donations for a creator page. */
+const INITIAL_VISIBLE = 6;
+
+/**
+ * The public "kind words" wall on a creator page. Shows recent paid, public
+ * donations — messages, bread counts and small amounts — with a local
+ * "show all" control so the wall stays scannable on mobile.
+ */
 export function SupportersFeed({
   donations,
   displayName,
@@ -22,64 +38,134 @@ export function SupportersFeed({
   donations: PublicDonation[];
   displayName: string;
 }) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+
+  const sorted = [...donations].sort(
+    (a, b) => (b.paidAt ?? 0) - (a.paidAt ?? 0),
+  );
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Recent supporters</CardTitle>
-        <CardDescription>
-          Messages from supporters for {displayName}.
-        </CardDescription>
+    <Card className="toy-card relative overflow-hidden">
+      <AnkaraPattern id="kind-words-wall" opacity={0.1} />
+      <CardHeader className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 font-toy text-xl">
+              <HeartBuddy size={24} />
+              Kind words
+            </CardTitle>
+            <CardDescription>
+              Small breads and messages from {displayName}&apos;s people.
+            </CardDescription>
+          </div>
+          {sorted.length > 0 ? (
+            <Badge
+              variant="secondary"
+              className="h-auto shrink-0 gap-1 border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/35 px-2.5 py-1 text-[10px] font-semibold text-foreground"
+            >
+              <MessageBuddy className="size-3.5" />
+              {sorted.length}
+            </Badge>
+          ) : null}
+        </div>
       </CardHeader>
-      <CardContent>
-        {donations.length === 0 ? (
-          <Empty className="p-6">
-            <EmptyTitle>No bread torn yet — be the first.</EmptyTitle>
-          </Empty>
+
+      <CardContent className="relative">
+        {sorted.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--toy-ink)]/20 bg-background/60 p-6 text-center">
+            <BreadBuddy size={48} className="mx-auto" />
+            <p className="mt-3 font-toy text-base font-semibold">
+              No bread torn yet — be the first.
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your kind word could be the one that makes their day.
+            </p>
+          </div>
         ) : (
-          <ul className="divide-y divide-border">
-            {donations.map((donation) => (
-              <SupporterRow key={donation._id} donation={donation} />
-            ))}
-          </ul>
+          <>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {visible.map((donation) => (
+                <KindWordCard key={donation._id} donation={donation} />
+              ))}
+            </ul>
+
+            <div className="mt-4 flex flex-col items-center gap-2">
+              {sorted.length > INITIAL_VISIBLE ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-2 border-[var(--toy-ink)]/10 bg-background/70"
+                  onClick={() =>
+                    setVisibleCount(hasMore ? sorted.length : INITIAL_VISIBLE)
+                  }
+                >
+                  {hasMore
+                    ? `Show all ${sorted.length} kind words`
+                    : "Show fewer kind words"}
+                </Button>
+              ) : null}
+              <p className="text-center text-[11px] text-muted-foreground">
+                Only public, paid messages appear here. Private support stays
+                private.
+              </p>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function SupporterRow({ donation }: { donation: PublicDonation }) {
+function KindWordCard({ donation }: { donation: PublicDonation }) {
   const initial = donation.supporterName.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <li className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-      <Avatar size="sm" className="mt-0.5">
-        <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-          {initial}
-        </AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="truncate text-sm font-medium">
+    <li className="flex h-full flex-col rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-background/75 p-4 shadow-[0_3px_0_rgba(42,23,15,0.06)]">
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-9 border-2 border-[var(--toy-ochre)]/50">
+          <AvatarFallback className="bg-[var(--toy-ochre)]/35 text-xs font-bold text-foreground">
+            {initial}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold [overflow-wrap:anywhere]">
             {donation.supporterName}
-          </span>
+          </p>
           {donation.paidAt !== undefined ? (
-            <span className="shrink-0 text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {formatRelativeTime(donation.paidAt)}
-            </span>
+            </p>
           ) : null}
         </div>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          <span className="tabular-nums font-medium text-foreground">
-            {formatMoney(donation.amount, donation.currency)}
-          </span>{" "}
-          · {donation.quantity}{" "}
-          {donation.quantity === 1 ? "bread" : "breads"}
+        <Badge
+          variant="outline"
+          className="h-auto shrink-0 gap-1 border-[var(--toy-ink)]/10 bg-[var(--toy-cream)]/70 px-2 py-1 text-[10px] font-semibold text-foreground"
+        >
+          <BreadBuddy className="size-3.5" />
+          {donation.quantity}
+        </Badge>
+      </div>
+
+      {donation.message ? (
+        <blockquote className="mt-3 flex-1 text-sm leading-relaxed text-foreground/85 [overflow-wrap:anywhere]">
+          &ldquo;{donation.message}&rdquo;
+        </blockquote>
+      ) : (
+        <p className="mt-3 flex-1 text-sm italic text-muted-foreground">
+          No message — just pure love.
         </p>
-        {donation.message ? (
-          <p className="mt-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">
-            {donation.message}
-          </p>
-        ) : null}
+      )}
+
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-[var(--toy-ink)]/10 pt-2.5 text-[11px] text-muted-foreground">
+        <span className="font-medium tabular-nums text-foreground">
+          {formatMoney(donation.amount, donation.currency)}
+        </span>
+        <span>
+          {donation.quantity} {donation.quantity === 1 ? "bread" : "breads"}
+        </span>
       </div>
     </li>
   );

@@ -18,6 +18,10 @@ const STATUS_MAP = {
     label: "Refunded",
     className: "bg-muted text-muted-foreground",
   },
+  abandoned: {
+    label: "Abandoned",
+    className: "bg-muted text-muted-foreground line-through",
+  },
 } as const;
 
 export type DonationStatus = keyof typeof STATUS_MAP;

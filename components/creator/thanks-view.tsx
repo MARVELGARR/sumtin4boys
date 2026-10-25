@@ -5,15 +5,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import {
-  ArrowLeft,
-  CircleCheck,
-  CircleQuestionMark,
-  Clock,
-  RotateCcw,
-  SearchX,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { AnkaraPattern } from "@/components/brand/ankara-pattern";
+import {
+  BreadBuddy,
+  CheckBuddy,
+  MessageBuddy,
+  SearchBuddy,
+} from "@/components/brand/toy-icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -64,65 +64,72 @@ function DonationStatus({ donation }: { donation: Donation }) {
     : "/";
 
   return (
-    <div className="flex flex-col gap-6">
-      <StatusCard donation={donation} />
+    <div className="relative">
+      <AnkaraPattern id="thanks-pattern" opacity={0.08} />
+      <div className="relative flex flex-col gap-6">
+        <StatusCard donation={donation} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Support details</CardTitle>
-          <CardDescription className="[overflow-wrap:anywhere]">
-            Reference:{" "}
-            <span className="font-mono text-xs">{donation.reference}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <dl className="flex flex-col gap-2 text-sm">
-            <SummaryRow
-              label="Amount"
-              value={
-                <span className="tabular-nums font-medium">
-                  {formatMoney(donation.amount, donation.currency)}
-                </span>
-              }
-            />
-            <SummaryRow
-              label={donation.quantity === 1 ? "Coffee" : "Coffees"}
-              value={<span className="tabular-nums">{donation.quantity}</span>}
-            />
-            <SummaryRow label="From" value={donation.supporterName} />
-            {donation.paidAt !== undefined ? (
+        <Card className="toy-card relative overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-toy text-xl">
+              <MessageBuddy size={24} />
+              Support details
+            </CardTitle>
+            <CardDescription className="[overflow-wrap:anywhere]">
+              Reference:{" "}
+              <span className="font-mono text-xs">{donation.reference}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="flex flex-col gap-2 text-sm">
               <SummaryRow
-                label="Paid"
+                label="Amount"
                 value={
-                  <span className="tabular-nums">
-                    {formatDateTime(donation.paidAt)}
+                  <span className="tabular-nums font-medium">
+                    {formatMoney(donation.amount, donation.currency)}
                   </span>
                 }
               />
+              <SummaryRow
+                label={donation.quantity === 1 ? "Bread" : "Breads"}
+                value={<span className="tabular-nums">{donation.quantity}</span>}
+              />
+              <SummaryRow label="From" value={donation.supporterName} />
+              {donation.paidAt !== undefined ? (
+                <SummaryRow
+                  label="Paid"
+                  value={
+                    <span className="tabular-nums">
+                      {formatDateTime(donation.paidAt)}
+                    </span>
+                  }
+                />
+              ) : null}
+            </dl>
+            {donation.message ? (
+              <blockquote className="mt-4 rounded-r-xl border-l-2 border-[var(--toy-leaf)] bg-[var(--toy-ochre)]/15 py-2 pl-3 text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                &ldquo;{donation.message}&rdquo;
+              </blockquote>
             ) : null}
-          </dl>
-          {donation.message ? (
-            <blockquote className="mt-4 border-l-2 border-border pl-3 text-sm text-muted-foreground [overflow-wrap:anywhere]">
-              {donation.message}
-            </blockquote>
-          ) : null}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-        {donation.creator ? (
-          <Button asChild variant="outline">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          {donation.creator ? (
+            <Button asChild variant="outline">
+              <Link href={creatorHref}>
+                <ArrowLeft />
+                Back to {donation.creator.displayName}
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild className="gap-2">
             <Link href={creatorHref}>
-              <ArrowLeft />
-              Back to {donation.creator.displayName}
+              <BreadBuddy size={18} />
+              {donation.creator ? "Tear bread again" : "Back to home"}
             </Link>
           </Button>
-        ) : null}
-        <Button asChild>
-          <Link href={creatorHref}>
-            {donation.creator ? "Support again" : "Back to home"}
-          </Link>
-        </Button>
+        </div>
       </div>
     </div>
   );
@@ -132,15 +139,17 @@ function StatusCard({ donation }: { donation: Donation }) {
   switch (donation.status) {
     case "pending":
       return (
-        <Card>
+        <Card className="toy-card relative overflow-hidden">
           <CardHeader>
-            <StatusIcon className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <Clock />
+            <StatusIcon className="bg-[var(--toy-lime)]/45">
+              <BreadBuddy />
             </StatusIcon>
-            <CardTitle>Waiting for confirmation</CardTitle>
+            <CardTitle className="font-toy text-2xl">
+              Your bread is on the way
+            </CardTitle>
             <CardDescription>
-              Your payment hasn&apos;t been confirmed yet. This page updates
-              automatically — no need to refresh.
+              We&apos;re waiting for the payment provider to confirm. This page
+              updates automatically — no need to refresh.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -156,15 +165,19 @@ function StatusCard({ donation }: { donation: Donation }) {
 
     case "paid":
       return (
-        <Card>
-          <CardHeader>
-            <StatusIcon className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CircleCheck />
+        <Card className="toy-card relative overflow-hidden">
+          <AnkaraPattern id="thanks-paid" opacity={0.1} />
+          <CardHeader className="relative">
+            <StatusIcon className="bg-[var(--toy-leaf)]/15">
+              <CheckBuddy />
             </StatusIcon>
-            <CardTitle>Thank you for your support!</CardTitle>
+            <CardTitle className="font-toy text-2xl">
+              Your bread landed!
+            </CardTitle>
             <CardDescription>
               Your {formatMoney(donation.amount, donation.currency)} support for{" "}
               {donation.creator?.displayName ?? "this creator"} went through.
+              You too much.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -172,12 +185,14 @@ function StatusCard({ donation }: { donation: Donation }) {
 
     case "unresolved":
       return (
-        <Card>
+        <Card className="toy-card">
           <CardHeader>
-            <StatusIcon className="bg-muted text-muted-foreground">
-              <CircleQuestionMark />
+            <StatusIcon className="bg-muted">
+              <SearchBuddy />
             </StatusIcon>
-            <CardTitle>We couldn&apos;t confirm this payment</CardTitle>
+            <CardTitle className="font-toy text-2xl">
+              We couldn&apos;t confirm this payment
+            </CardTitle>
             <CardDescription>
               The payment provider didn&apos;t send us a final result. If you
               were charged, it will be reconciled automatically — keep your
@@ -190,16 +205,36 @@ function StatusCard({ donation }: { donation: Donation }) {
 
     case "refunded":
       return (
-        <Card>
+        <Card className="toy-card">
           <CardHeader>
-            <StatusIcon className="bg-muted text-muted-foreground">
-              <RotateCcw />
+            <StatusIcon className="bg-[var(--toy-bread)]/25">
+              <BreadBuddy />
             </StatusIcon>
-            <CardTitle>Payment refunded</CardTitle>
+            <CardTitle className="font-toy text-2xl">
+              This bread came back
+            </CardTitle>
             <CardDescription>
               {formatMoney(donation.amount, donation.currency)} was refunded, so
               this support didn&apos;t go through. Thanks anyway — you can try
               again below.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      );
+
+    case "abandoned":
+      return (
+        <Card className="toy-card">
+          <CardHeader>
+            <StatusIcon className="bg-muted">
+              <BreadBuddy />
+            </StatusIcon>
+            <CardTitle className="font-toy text-2xl">
+              This checkout wasn&apos;t completed
+            </CardTitle>
+            <CardDescription>
+              We stopped checking this payment after a few days and nothing was
+              charged. You can start a fresh support checkout below.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -217,7 +252,7 @@ function StatusIcon({
   return (
     <div
       className={cn(
-        "mb-1 flex size-10 items-center justify-center rounded-full [&_svg]:size-5",
+        "mb-1 flex size-12 items-center justify-center rounded-2xl border-2 border-[var(--toy-ink)]/10 [&_svg]:size-7",
         className,
       )}
     >
@@ -237,12 +272,14 @@ function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
 
 function ReferenceNotFound() {
   return (
-    <Empty className="border border-border bg-card">
+    <Empty className="toy-card border-2 border-[var(--toy-ink)]/10 bg-card">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <SearchX />
+          <SearchBuddy className="size-5" />
         </EmptyMedia>
-        <EmptyTitle>{"We couldn't find that reference"}</EmptyTitle>
+        <EmptyTitle className="font-toy text-2xl">
+          We couldn&apos;t find that reference
+        </EmptyTitle>
         <EmptyDescription>
           This link may be incomplete or expired. If you just paid, check your
           email for the receipt, or ask the creator to look it up.
@@ -261,14 +298,14 @@ function ReferenceNotFound() {
 export function ThanksViewSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      <Card className="toy-card">
         <CardHeader>
-          <Skeleton className="mb-1 size-10 rounded-full" />
-          <Skeleton className="h-6 w-56" />
+          <Skeleton className="mb-1 size-12 rounded-2xl" />
+          <Skeleton className="h-7 w-56" />
           <Skeleton className="h-4 w-full" />
         </CardHeader>
       </Card>
-      <Card>
+      <Card className="toy-card">
         <CardHeader>
           <Skeleton className="h-5 w-36" />
           <Skeleton className="h-4 w-48" />

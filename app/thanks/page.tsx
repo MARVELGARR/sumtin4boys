@@ -13,11 +13,13 @@ export const metadata: Metadata = {
 
 export default function ThanksPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
-      <div className="mx-auto w-full max-w-xl">
-        <Suspense fallback={<ThanksViewSkeleton />}>
-          <ThanksView />
-        </Suspense>
+    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-x-clip bg-background text-foreground">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
+        <div className="mx-auto w-full max-w-xl">
+          <Suspense fallback={<ThanksViewSkeleton />}>
+            <ThanksView />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

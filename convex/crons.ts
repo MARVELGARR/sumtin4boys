@@ -37,4 +37,18 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "abandon donations past the reconcile window",
+  { hours: 24 },
+  internal.donations.abandonStaleDonations,
+  {},
+);
+
+crons.interval(
+  "clean up expired webhook and API-operation rows",
+  { hours: 24 },
+  internal.admin.cleanupExpiredRecords,
+  {},
+);
+
 export default crons;

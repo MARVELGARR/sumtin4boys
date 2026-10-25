@@ -1,5 +1,11 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { applyLedgerEntry } from "./ledger";
 import { appError } from "./lib/errors";
 import { isAdmin, requireAdmin } from "./lib/guards";
@@ -17,6 +23,48 @@ export const amIAdmin = query({
   handler: async (ctx) => await isAdmin(ctx),
 });
 
+/** Append-only audit trail for privileged actions. */
+async function recordAdminAudit(
+  ctx: MutationCtx,
+  args: {
+    actorUserId: Id<"users">;
+    action: string;
+    targetType: string;
+    targetId?: string;
+    metadata?: string;
+    before?: unknown;
+    after?: unknown;
+  },
+): Promise<void> {
+  const json = (value: unknown) =>
+    value === undefined ? undefined : JSON.stringify(value);
+  await ctx.db.insert("adminAuditLogs", {
+    actorUserId: args.actorUserId,
+    action: args.action,
+    targetType: args.targetType,
+    targetId: args.targetId,
+    metadata: args.metadata,
+    beforeJson: json(args.before),
+    afterJson: json(args.after),
+    createdAt: Date.now(),
+  });
+}
+
+/** The subset of creator balance/status state worth putting in the audit log. */
+function creatorAuditState(creator: {
+  status: string;
+  balancePending: number;
+  balanceAvailable: number;
+  balancePaidOut: number;
+}) {
+  return {
+    status: creator.status,
+    balancePending: creator.balancePending,
+    balanceAvailable: creator.balanceAvailable,
+    balancePaidOut: creator.balancePaidOut,
+  };
+}
+
 const creatorOverviewValidator = v.object({
   _id: v.id("creators"),
   username: v.string(),
@@ -24,7 +72,7 @@ const creatorOverviewValidator = v.object({
   email: v.union(v.string(), v.null()),
   status: v.union(v.literal("active"), v.literal("suspended")),
   currency: v.string(),
-  coffeePrice: v.number(),
+  breadPrice: v.number(),
   totalRaised: v.number(),
   totalSupporters: v.number(),
   balancePending: v.number(),
@@ -55,7 +103,7 @@ export const listCreators = query({
         email: user?.email ?? null,
         status: creator.status,
         currency: creator.currency,
-        coffeePrice: creator.coffeePrice,
+        breadPrice: creator.coffeePrice,
         totalRaised: creator.totalRaised,
         totalSupporters: creator.totalSupporters,
         balancePending: creator.balancePending,
@@ -76,10 +124,19 @@ export const setCreatorStatus = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const admin = await requireAdmin(ctx);
     const creator = await ctx.db.get("creators", args.creatorId);
     if (!creator) throw appError("not_found", "Creator not found.");
     await ctx.db.patch("creators", creator._id, { status: args.status });
+    await recordAdminAudit(ctx, {
+      actorUserId: admin._id,
+      action: "creator.status",
+      targetType: "creator",
+      targetId: creator._id,
+      metadata: `${creator.status} -> ${args.status}`,
+      before: { status: creator.status },
+      after: { status: args.status },
+    });
     return null;
   },
 });
@@ -150,7 +207,7 @@ export const markPayoutPaid = mutation({
   args: { payoutId: v.id("payouts"), reference: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const admin = await requireAdmin(ctx);
     const payout = await ctx.db.get("payouts", args.payoutId);
     if (!payout) throw appError("not_found", "Payout not found.");
     if (payout.status === "paid" || payout.status === "failed") {
@@ -171,6 +228,25 @@ export const markPayoutPaid = mutation({
         balancePaidOut: creator.balancePaidOut + payout.amount,
       });
     }
+    const creatorAfter = creator
+      ? await ctx.db.get("creators", creator._id)
+      : null;
+    await recordAdminAudit(ctx, {
+      actorUserId: admin._id,
+      action: "payout.paid",
+      targetType: "payout",
+      targetId: payout._id,
+      metadata: `${payout.amount} ${payout.currency}; ref ${reference}`,
+      before: {
+        payoutStatus: payout.status,
+        creator: creator ? creatorAuditState(creator) : null,
+      },
+      after: {
+        payoutStatus: "paid",
+        reference,
+        creator: creatorAfter ? creatorAuditState(creatorAfter) : null,
+      },
+    });
     return null;
   },
 });
@@ -179,7 +255,7 @@ export const markPayoutFailed = mutation({
   args: { payoutId: v.id("payouts"), reason: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const admin = await requireAdmin(ctx);
     const payout = await ctx.db.get("payouts", args.payoutId);
     if (!payout) throw appError("not_found", "Payout not found.");
     if (payout.status === "paid" || payout.status === "failed") {
@@ -189,6 +265,7 @@ export const markPayoutFailed = mutation({
     if (!reason) {
       throw appError("invalid_input", "Add a reason for the failure.");
     }
+    const creatorBefore = await ctx.db.get("creators", payout.creatorId);
     await ctx.db.patch("payouts", payout._id, {
       status: "failed",
       failureReason: reason,
@@ -203,6 +280,23 @@ export const markPayoutFailed = mutation({
       payoutId: payout._id,
       settlementStatus: "settled",
       note: "Payout failed — funds released",
+    });
+    const creatorAfter = await ctx.db.get("creators", payout.creatorId);
+    await recordAdminAudit(ctx, {
+      actorUserId: admin._id,
+      action: "payout.failed",
+      targetType: "payout",
+      targetId: payout._id,
+      metadata: reason,
+      before: {
+        payoutStatus: payout.status,
+        creator: creatorBefore ? creatorAuditState(creatorBefore) : null,
+      },
+      after: {
+        payoutStatus: "failed",
+        failureReason: reason,
+        creator: creatorAfter ? creatorAuditState(creatorAfter) : null,
+      },
     });
     return null;
   },
@@ -221,7 +315,7 @@ export const recomputeCreatorBalances = mutation({
     truncated: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const admin = await requireAdmin(ctx);
     const creator = await ctx.db.get("creators", args.creatorId);
     if (!creator) throw appError("not_found", "Creator not found.");
     const CAP = 5000;
@@ -229,10 +323,17 @@ export const recomputeCreatorBalances = mutation({
       .query("ledgerEntries")
       .withIndex("by_creator", (q) => q.eq("creatorId", args.creatorId))
       .take(CAP + 1);
-    const truncated = entries.length > CAP;
+    if (entries.length > CAP) {
+      // Never overwrite balances from a partial ledger. Refusing is safer
+      // than silently reporting a lower balance as authoritative.
+      throw appError(
+        "too_many_entries",
+        `This creator has more than ${CAP} ledger entries. Recompute in smaller batches or export the ledger; no balances were changed.`,
+      );
+    }
     let pending = 0;
     let available = 0;
-    for (const entry of entries.slice(0, CAP)) {
+    for (const entry of entries) {
       if (entry.settlementStatus === "pending") pending += entry.amount;
       else available += entry.amount;
     }
@@ -240,11 +341,29 @@ export const recomputeCreatorBalances = mutation({
       balancePending: pending,
       balanceAvailable: available,
     });
+    await recordAdminAudit(ctx, {
+      actorUserId: admin._id,
+      action: "creator.balances.recompute",
+      targetType: "creator",
+      targetId: creator._id,
+      metadata: `pending ${pending}; available ${available}; entries ${entries.length}`,
+      before: {
+        balancePending: creator.balancePending,
+        balanceAvailable: creator.balanceAvailable,
+        balancePaidOut: creator.balancePaidOut,
+      },
+      after: {
+        balancePending: pending,
+        balanceAvailable: available,
+        balancePaidOut: creator.balancePaidOut,
+        entriesScanned: entries.length,
+      },
+    });
     return {
       pending,
       available,
-      entriesScanned: Math.min(entries.length, CAP),
-      truncated,
+      entriesScanned: entries.length,
+      truncated: false,
     };
   },
 });
@@ -255,6 +374,7 @@ export const listWebhookEvents = query({
   returns: v.array(
     v.object({
       _id: v.id("webhookEvents"),
+      _creationTime: v.number(),
       eventId: v.string(),
       type: v.string(),
       source: v.union(v.literal("webhook"), v.literal("reconcile"), v.literal("simulated")),
@@ -278,6 +398,7 @@ export const listApiOperations = query({
   returns: v.array(
     v.object({
       _id: v.id("apiOperations"),
+      _creationTime: v.number(),
       key: v.string(),
       kind: v.string(),
       status: v.union(
@@ -298,5 +419,73 @@ export const listApiOperations = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     return await ctx.db.query("apiOperations").order("desc").take(100);
+  },
+});
+
+/**
+ * Retention for append-only operational tables.
+ *
+ * Webhook deliveries and API-operation rows are kept long enough to debug a
+ * payment, then deleted in bounded batches so they cannot grow forever.
+ * Ledger entries, donations, payouts and the admin audit log are financial
+ * records and are intentionally NOT touched by this job.
+ */
+export const cleanupExpiredRecords = internalMutation({
+  args: { now: v.optional(v.number()) },
+  returns: v.object({
+    webhookEvents: v.number(),
+    apiOperations: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const now = args.now ?? Date.now();
+    const webhookCutoff = now - 90 * 24 * 60 * 60 * 1000;
+    const operationCutoff = now - 90 * 24 * 60 * 60 * 1000;
+
+    const events = await ctx.db
+      .query("webhookEvents")
+      .withIndex("by_receivedAt", (q) => q.lt("receivedAt", webhookCutoff))
+      .take(500);
+    for (const event of events) {
+      await ctx.db.delete("webhookEvents", event._id);
+    }
+
+    let operationsDeleted = 0;
+    for (const status of ["succeeded", "failed", "outcome_unknown"] as const) {
+      const operations = await ctx.db
+        .query("apiOperations")
+        .withIndex("by_status", (q) =>
+          q.eq("status", status).lt("updatedAt", operationCutoff),
+        )
+        .take(500);
+      for (const operation of operations) {
+        await ctx.db.delete("apiOperations", operation._id);
+        operationsDeleted += 1;
+      }
+    }
+
+    return { webhookEvents: events.length, apiOperations: operationsDeleted };
+  },
+});
+
+/** Recent privileged actions, newest first. */
+export const listAuditLog = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("adminAuditLogs"),
+      _creationTime: v.number(),
+      actorUserId: v.id("users"),
+      action: v.string(),
+      targetType: v.string(),
+      targetId: v.optional(v.string()),
+      metadata: v.optional(v.string()),
+      beforeJson: v.optional(v.string()),
+      afterJson: v.optional(v.string()),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return await ctx.db.query("adminAuditLogs").order("desc").take(200);
   },
 });

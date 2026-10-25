@@ -9,5 +9,14 @@ export default {
   test: {
     environment: "edge-runtime",
     testTimeout: 15000,
+    // Tests run the fake payment driver in-process. These are test-only values:
+    // `ALLOW_SIMULATED` is the second explicit opt-in required by
+    // convex/lib/config.ts, and CONVEX_SITE_URL gives checkout payloads a
+    // public redirect base (Bachs rejects localhost).
+    env: {
+      CONVEX_SITE_URL: "https://example.convex.site",
+      PAYMENTS_DRIVER: "simulated",
+      ALLOW_SIMULATED: "true",
+    },
   },
 } satisfies ViteUserConfig;

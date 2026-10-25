@@ -5,8 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import {
+  BreadBuddy,
+  SearchBuddy,
+} from "@/components/brand/toy-icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -119,7 +123,7 @@ export function SimulatedCheckoutView() {
           <Empty className="rounded-2xl border bg-card">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <RefreshCw className="size-4" />
+                <SearchBuddy className="size-5" />
               </EmptyMedia>
               <EmptyTitle>Checkout not found</EmptyTitle>
               <EmptyDescription>
@@ -146,9 +150,13 @@ export function SimulatedCheckoutView() {
             </div>
           </div>
         ) : (
-          <Card className="rounded-2xl">
+          <Card className="toy-card relative overflow-hidden rounded-2xl">
+            <div className="ankara-ribbon absolute inset-x-0 top-0 h-1.5" />
             <CardHeader>
-              <CardTitle className="text-xl">Review your support</CardTitle>
+              <CardTitle className="flex items-center gap-2 font-toy text-xl">
+                <BreadBuddy size={26} />
+                Review your bread
+              </CardTitle>
               <CardDescription>
                 This is a simulated checkout — nothing leaves your account.
               </CardDescription>
@@ -169,14 +177,17 @@ export function SimulatedCheckoutView() {
               </div>
               <Separator />
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Coffees</span>
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <BreadBuddy size={18} />
+                  Breads
+                </span>
                 <span className="font-medium tabular-nums">
-                  {donation.quantity} × coffee
+                  {donation.quantity} × bread
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4 rounded-xl bg-[var(--toy-ochre)]/20 px-3 py-2">
                 <span className="text-muted-foreground">Total</span>
-                <span className="font-medium tabular-nums">
+                <span className="font-toy text-lg font-bold tabular-nums">
                   {formatMoney(donation.amount, donation.currency)}
                 </span>
               </div>
@@ -206,6 +217,7 @@ export function SimulatedCheckoutView() {
                 disabled={pending !== null}
               >
                 {pending === "paid" ? <Spinner /> : null}
+                <BreadBuddy size={19} />
                 Pay {formatMoney(donation.amount, donation.currency)}
               </Button>
               <Button

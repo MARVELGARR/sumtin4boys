@@ -11,7 +11,6 @@ import {
   Check,
   CircleCheck,
   CircleX,
-  Coffee,
   Copy,
   Eye,
   Link2,
@@ -20,6 +19,7 @@ import {
   Sparkles,
   Target,
   Wallet,
+  Wheat,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { RequireAuth } from "@/components/require-auth";
@@ -55,8 +55,8 @@ import {
   DISPLAY_NAME_MAX_LENGTH,
   formatMoney,
   fromMinorUnits,
-  MAX_COFFEE_PRICE_MINOR,
-  MIN_COFFEE_PRICE_MINOR,
+  MAX_BREAD_PRICE_MINOR,
+  MIN_BREAD_PRICE_MINOR,
   normalizeUsername,
   parseMajorAmount,
   SUPPORTED_CURRENCIES,
@@ -83,12 +83,12 @@ const STEPS = [
   },
   {
     title: "Make it yours",
-    description: "Set your name, coffee price, and goal.",
+    description: "Set your name, bread price, and goal.",
     icon: Sparkles,
   },
   {
     title: "Go live",
-    description: "Share your page and get your first coffee.",
+    description: "Share your page and get your first bread.",
     icon: PartyPopper,
   },
 ] as const;
@@ -103,7 +103,7 @@ export function OnboardingFlow() {
   return (
     <RequireAuth
       title="Sign in to set up your page"
-      description="Create an account, claim your username, and start receiving coffees."
+      description="Create an account, claim your username, and start receiving bread."
     >
       <OnboardingFlowInner />
     </RequireAuth>
@@ -206,7 +206,7 @@ function OnboardingFlowInner() {
                 viewerName.length > 0 ? viewerName : creator.displayName
               }
               defaultPrice={fromMinorUnits(
-                creator.coffeePrice,
+                creator.breadPrice,
                 creator.currency,
               )}
               defaultCurrency={creator.currency}
@@ -260,11 +260,11 @@ function WizardRail({ step }: { step: Step }) {
           variant="secondary"
           className="gap-1.5 border-primary/15 bg-primary/5 text-primary"
         >
-          <Coffee className="size-3.5" />
+          <Wheat className="size-3.5" />
           Creator setup
         </Badge>
         <h1 className="mt-4 text-2xl font-bold tracking-tight text-balance">
-          Three small steps to your first coffee
+          Three small steps to your first bread
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           You can change everything later from your dashboard.
@@ -520,18 +520,18 @@ function ProfileStep({
 
     const priceMinor = parseMajorAmount(price, currency);
     if (priceMinor === null) {
-      setPriceError("Enter a valid coffee price, for example 1000.");
+      setPriceError("Enter a valid bread price, for example 1000.");
       return;
     }
     if (
-      priceMinor < MIN_COFFEE_PRICE_MINOR ||
-      priceMinor > MAX_COFFEE_PRICE_MINOR
+      priceMinor < MIN_BREAD_PRICE_MINOR ||
+      priceMinor > MAX_BREAD_PRICE_MINOR
     ) {
       setPriceError(
-        `Coffee price must be between ${formatMoney(
-          MIN_COFFEE_PRICE_MINOR,
+        `Bread price must be between ${formatMoney(
+          MIN_BREAD_PRICE_MINOR,
           currency,
-        )} and ${formatMoney(MAX_COFFEE_PRICE_MINOR, currency)}.`,
+        )} and ${formatMoney(MAX_BREAD_PRICE_MINOR, currency)}.`,
       );
       return;
     }
@@ -541,10 +541,10 @@ function ProfileStep({
     let goalMinor: number | null = null;
     if (goalText.length > 0) {
       goalMinor = parseMajorAmount(goalText, currency);
-      if (goalMinor === null || goalMinor < MIN_COFFEE_PRICE_MINOR) {
+      if (goalMinor === null || goalMinor < MIN_BREAD_PRICE_MINOR) {
         setGoalError(
           `Goal must be at least ${formatMoney(
-            MIN_COFFEE_PRICE_MINOR,
+            MIN_BREAD_PRICE_MINOR,
             currency,
           )}, or leave it empty.`,
         );
@@ -557,7 +557,7 @@ function ProfileStep({
     try {
       await updateProfile({
         displayName: trimmedName,
-        coffeePrice: priceMinor,
+        breadPrice: priceMinor,
         currency,
         goalAmount: goalMinor,
       });
@@ -650,10 +650,10 @@ function ProfileStep({
                 </Field>
 
                 <Field data-invalid={priceError !== null}>
-                  <FieldLabel htmlFor="coffeePrice">Coffee price</FieldLabel>
+                  <FieldLabel htmlFor="breadPrice">Bread price</FieldLabel>
                   <Input
-                    id="coffeePrice"
-                    name="coffeePrice"
+                    id="breadPrice"
+                    name="breadPrice"
                     value={price}
                     onChange={(event) => {
                       setPrice(event.target.value);
@@ -669,8 +669,8 @@ function ProfileStep({
                     <FieldError>{priceError}</FieldError>
                   ) : (
                     <FieldDescription>
-                      At least {formatMoney(MIN_COFFEE_PRICE_MINOR, currency)}{" "}
-                      per coffee.
+                      At least {formatMoney(MIN_BREAD_PRICE_MINOR, currency)}{" "}
+                      per bread.
                     </FieldDescription>
                   )}
                 </Field>
@@ -792,10 +792,10 @@ function PagePreview({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="gap-1">
-            <Coffee className="size-3" />
+            <Wheat className="size-3" />
             {priceMinor !== null
               ? formatMoney(priceMinor, currency)
-              : "One coffee"}
+              : "One bread"}
           </Badge>
           {goalMinor !== null && goalMinor > 0 ? (
             <Badge variant="outline" className="gap-1">
@@ -806,8 +806,8 @@ function PagePreview({
         </div>
 
         <div className="mt-4 flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
-          <Coffee className="size-4" />
-          Buy a coffee
+          <Wheat className="size-4" />
+          Buy a bread
         </div>
       </div>
     </section>
@@ -856,7 +856,7 @@ function SuccessStep({
           {displayName}&apos;s page is live
         </h2>
         <p className="animate-fade-in-up animate-delay-200 relative mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Share your link with your people — the first coffee is closer than
+          Share your link with your people — the first bread is closer than
           you think.
         </p>
       </div>

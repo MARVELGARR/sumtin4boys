@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { CreatorsTable } from "@/components/admin/creators-table";
 import { EventsTables } from "@/components/admin/events-tables";
+import { MessagesTable } from "@/components/admin/messages-table";
 import { PayoutsTable } from "@/components/admin/payouts-table";
 import {
   Empty,
@@ -17,7 +18,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const ADMIN_TABS = ["creators", "payouts", "events"] as const;
+const ADMIN_TABS = ["creators", "payouts", "events", "messages"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 const tabParser = parseAsStringEnum<AdminTab>([...ADMIN_TABS]).withDefault(
@@ -74,6 +75,7 @@ function AdminTabs() {
         <TabsTrigger value="creators">Creators</TabsTrigger>
         <TabsTrigger value="payouts">Payouts</TabsTrigger>
         <TabsTrigger value="events">Events</TabsTrigger>
+        <TabsTrigger value="messages">Messages</TabsTrigger>
       </TabsList>
       <TabsContent value="creators">
         <CreatorsTable />
@@ -83,6 +85,9 @@ function AdminTabs() {
       </TabsContent>
       <TabsContent value="events">
         <EventsTables />
+      </TabsContent>
+      <TabsContent value="messages">
+        <MessagesTable />
       </TabsContent>
     </Tabs>
   );
