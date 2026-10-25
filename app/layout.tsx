@@ -6,7 +6,14 @@ import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/sonner";
+import { JsonLd } from "@/components/seo/json-ld";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import {
+  DEFAULT_OG_IMAGE,
+  SITE_URL,
+  organizationJsonLd,
+  websiteJsonLd,
+} from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 // Preset font: Inter (variable `--font-sans`). Geist Mono feeds `--font-mono`
@@ -16,11 +23,19 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 const fredoka = Fredoka({ subsets: ["latin"], variable: "--font-toy" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: `${APP_NAME} — ${APP_TAGLINE}`,
     template: `%s · ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  authors: [{ name: `${APP_NAME} team`, url: SITE_URL }],
+  creator: `${APP_NAME} team`,
+  publisher: APP_NAME,
+  category: "creator support",
+  formatDetection: { telephone: false },
+  manifest: "/manifest.webmanifest",
   keywords: [
     "tear small bread",
     "anything for the boys",
@@ -37,11 +52,25 @@ export const metadata: Metadata = {
     siteName: APP_NAME,
     locale: "en_NG",
     type: "website",
+    url: SITE_URL,
+    images: [DEFAULT_OG_IMAGE],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: `${APP_NAME} — ${APP_TAGLINE}`,
     description: APP_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE.url],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -49,6 +78,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#2f7d75",
 };
 
 export default function RootLayout({
@@ -59,7 +89,7 @@ export default function RootLayout({
   return (
     <ConvexAuthNextjsServerProvider>
       <html
-        lang="en"
+        lang="en-NG"
         className={cn(
           "font-sans",
           inter.variable,
@@ -68,6 +98,8 @@ export default function RootLayout({
         )}
       >
         <body className="bg-background text-foreground antialiased">
+          <JsonLd data={organizationJsonLd()} />
+          <JsonLd data={websiteJsonLd()} />
           <ConvexClientProvider>
             <div className="flex min-h-dvh flex-col overflow-x-clip">
               <SiteHeader />

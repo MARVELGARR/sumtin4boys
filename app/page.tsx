@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import { JsonLd } from "@/components/seo/json-ld";
+import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE } from "@/lib/constants";
+import { HOME_FAQS } from "@/lib/faq";
+import { SITE_KEYWORDS, faqJsonLd, pageMetadata } from "@/lib/seo";
 import { HeroClaimInput } from "@/components/landing/hero-claim-input";
 import { InteractivePlayground } from "@/components/landing/interactive-playground";
 import { HowItWorksStepper } from "@/components/landing/how-it-works-stepper";
@@ -24,6 +28,13 @@ import {
   SunBuddy,
   ToySticker,
 } from "@/components/brand/toy-icons";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Tear small bread. Make somebody's day",
+  description: APP_DESCRIPTION,
+  path: "/",
+  keywords: SITE_KEYWORDS,
+});
 
 const perks = [
   {
@@ -67,6 +78,7 @@ const perks = [
 export default function HomePage() {
   return (
     <div className="relative overflow-x-clip bg-background text-foreground">
+      <JsonLd data={faqJsonLd(HOME_FAQS)} />
       {/* Background ambient glow + abstract wax-print texture */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <AnkaraPattern id="landing-hero" opacity={0.08} />

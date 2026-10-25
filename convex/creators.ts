@@ -163,6 +163,30 @@ export const getByUsername = query({
   },
 });
 
+/**
+ * Minimal public directory used by `app/sitemap.ts`. Only active creator pages
+ * are returned; suspended pages are intentionally omitted.
+ */
+export const listForSitemap = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      username: v.string(),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const creators = await ctx.db
+      .query("creators")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .take(5_000);
+    return creators.map((creator) => ({
+      username: creator.username,
+      createdAt: creator.createdAt,
+    }));
+  },
+});
+
 /** Live availability check for the onboarding username picker. */
 export const checkUsername = query({
   args: { username: v.string() },
