@@ -4,6 +4,7 @@ import { OnboardingFlow } from "@/components/onboarding/onboarding-flow";
 export const metadata: Metadata = {
   title: "Get set up",
   description: "Claim your username and set up your creator page.",
+  robots: { index: false, follow: false },
 };
 
 export default function OnboardingPage() {

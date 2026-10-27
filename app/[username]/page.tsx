@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { fetchQuery, preloadQuery } from "convex/nextjs";
+import { fetchQuery, preloadQuery, preloadedQueryResult } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import {
   CreatorPage,
@@ -64,10 +64,10 @@ export async function generateMetadata({
 
 export default async function CreatorProfilePage({ params }: CreatorPageProps) {
   const { username } = await params;
-  const { creator } = await fetchQuery(api.creators.getByUsername, { username });
+  const preloaded = await preloadQuery(api.creators.getByUsername, { username });
+  const { creator } = preloadedQueryResult(preloaded);
   if (!creator) notFound();
 
-  const preloaded = await preloadQuery(api.creators.getByUsername, { username });
   const description =
     creator.bio?.trim() ||
     `Support ${creator.displayName} on ${APP_NAME} — tear them small bread.`;

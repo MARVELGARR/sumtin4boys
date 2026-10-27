@@ -17,6 +17,7 @@ export default function robots(): MetadataRoute.Robots {
       ],
     },
     sitemap: absoluteUrl("/sitemap.xml"),
-    host: SITE_URL,
+    // Yandex's Host directive wants a bare hostname, not a full URL.
+    host: new URL(SITE_URL).host,
   };
 }

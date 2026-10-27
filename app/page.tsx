@@ -30,7 +30,7 @@ import {
 } from "@/components/brand/toy-icons";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Tear small bread. Make somebody's day",
+  title: `Tear small bread. Make somebody's day · ${APP_NAME}`,
   description: APP_DESCRIPTION,
   path: "/",
   keywords: SITE_KEYWORDS,

@@ -74,7 +74,7 @@ Public. Returns `{ creator: PublicCreator | null, recentDonations: PublicDonatio
 PublicCreator = {
   username: string; displayName: string; bio?: string;
   avatarUrl: string | null;             // ready-to-use URL
-  coffeePrice: number;                  // minor units
+  breadPrice: number;                  // minor units
   currency: string;                     // "NGN" default
   goalAmount?: number;                  // minor units
   status: "active" | "suspended";       // suspended → show notice instead of donate form
@@ -105,7 +105,7 @@ Works signed-out (`viewer` fields null, `creator: null`).
 }
 MyCreator = {
   _id: Id<"creators">; username: string; displayName: string; bio?: string;
-  avatarUrl: string | null; coffeePrice: number; currency: string; goalAmount?: number;
+  avatarUrl: string | null; breadPrice: number; currency: string; goalAmount?: number;
   status: "active" | "suspended"; createdAt: number;
   balancePending: number; balanceAvailable: number; balancePaidOut: number;
   totalRaised: number; totalSupporters: number;
@@ -116,9 +116,9 @@ MyCreator = {
 
 #### `api.creators.updateProfile` — mutation
 
-`{ displayName?: string, bio?: string | null, coffeePrice?: number, currency?: string, goalAmount?: number | null }` → `null`.
+`{ displayName?: string, bio?: string | null, breadPrice?: number, currency?: string, goalAmount?: number | null }` → `null`.
 Auth + creator required. Only provided fields change; explicit `null` clears bio/goalAmount.
-Coffee price must be within `MIN_COFFEE_PRICE_MINOR .. MAX_COFFEE_PRICE_MINOR` (see §4).
+Bread price must be within `MIN_BREAD_PRICE_MINOR .. MAX_BREAD_PRICE_MINOR` (see §4). The persisted schema field is still named `coffeePrice` for migration compatibility; public functions expose `breadPrice`.
 
 #### Avatar upload (3 steps)
 
@@ -216,7 +216,7 @@ Paginated `{ _id, amount, currency, status: "requested"|"processing"|"paid"|"fai
 All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the deployment).
 
 - `api.admin.amIAdmin` — query `{}` → `boolean` (safe signed-out → false).
-- `api.admin.listCreators` — query `{}` → rows `{ _id, username, displayName, email|null, status, currency, coffeePrice, totalRaised, totalSupporters, balancePending, balanceAvailable, balancePaidOut, onboardingStatus, createdAt }`.
+- `api.admin.listCreators` — query `{}` → rows `{ _id, username, displayName, email|null, status, currency, breadPrice, totalRaised, totalSupporters, balancePending, balanceAvailable, balancePaidOut, onboardingStatus, createdAt }`.
 - `api.admin.setCreatorStatus` — mutation `{ creatorId: Id<"creators">, status: "active" | "suspended" }`.
 - `api.admin.listPayouts` — query `{ status?: "requested"|"processing"|"paid"|"failed" }` → rows `{ _id, creatorUsername, creatorDisplayName, amount, currency, status, method, reference?, failureReason?, requestedAt, processedAt? }` (up to 100 new→old).
 - `api.admin.markPayoutPaid` — mutation `{ payoutId: Id<"payouts">, reference: string }` (bank/transfer reference).
@@ -224,6 +224,13 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 - `api.admin.recomputeCreatorBalances` — mutation `{ creatorId: Id<"creators"> }` → `{ pending, available, entriesScanned, truncated }` (recomputes pending/available from the ledger; `paidOut` is historical and untouched).
 - `api.admin.listWebhookEvents` — query `{}` → last 100 events `{ _id, eventId, type, source: "webhook"|"reconcile"|"simulated", outcome, donationId?, creatorId?, checkoutId?, eventCreatedAt, receivedAt }`.
 - `api.admin.listApiOperations` — query `{}` → last 100 provider ops `{ _id, key, kind, status: "started"|"succeeded"|"failed"|"outcome_unknown", refId?, providerId?, errorCode?, errorMessage?, attempts, createdAt, updatedAt }`.
+
+### 3.8 `contact`
+
+- `api.contact.submit` — public mutation `{ name, email, topic: "support"|"creator"|"payment"|"press"|"other", message, website? }` → `{ ok: true }`. Honeypot `website`; rate-limited per email and globally; stores in `contactMessages`; best-effort team notification.
+- `api.contact.listMessages` — admin-only query `{ status?: "new"|"read"|"archived" }` → up to 200 messages, newest first.
+- `api.contact.setStatus` — admin-only mutation `{ messageId, status: "new"|"read"|"archived" }` → `null`.
+- `api.contact.notify` — internal action, called after a successful submission; skipped when Resend/`SUPPORT_EMAIL` is not configured.
 
 **Debug timestamp fields** (`eventCreatedAt`, `receivedAt`, `createdAt`, `updatedAt`) are **epoch milliseconds — `v.number()`, NOT `_creationTime`**. Convert with `formatDateTime(ms)`.
 
@@ -243,7 +250,7 @@ CURRENCY_DECIMALS
 
 USERNAME_MIN_LENGTH=3, USERNAME_MAX_LENGTH=30, DISPLAY_NAME_MAX_LENGTH=60,
 BIO_MAX_LENGTH=500, SUPPORTER_NAME_MAX_LENGTH=60, MESSAGE_MAX_LENGTH=280,
-MAX_QUANTITY=10, MIN_COFFEE_PRICE_MINOR=10_000 (₦100), MAX_COFFEE_PRICE_MINOR=100_000_000,
+MAX_QUANTITY=10, MIN_BREAD_PRICE_MINOR=10_000 (₦100), MAX_BREAD_PRICE_MINOR=100_000_000,
 SUPPORTED_CURRENCIES (includes NGN), normalizeUsername, checkUsernameFormat, isValidEmail
 
 appErrorCode(error): AppErrorCode | null
@@ -275,8 +282,12 @@ Shared components (lead-owned, already written):
 |---|---|
 | `/` | B2 — landing (placeholder exists — replace it) |
 | `/signin` | B2 — password auth, `?flow=signUp` opens the create-account tab |
+| `/about` | public — story, values, money flow, author section |
+| `/about/author` | public — team author/editorial page |
+| `/support` | public — supporter/creator help + FAQ |
+| `/contact` | public — contact form, admin inbox persists submissions |
 | `/onboarding` | B2 — claim username + set price (auth required) |
-| `/[username]` | B1 — SSR creator page + donate card + coffee feed |
+| `/[username]` | B1 — SSR creator page + donate card + bread feed |
 | `/thanks?ref=` | B1 — reactive donation status |
 | `/simulated-checkout?ref=` | B2 — labelled fake checkout (Pay / Fail / Expire) |
 | `/dashboard` | C — overview: balances, totals, recent supporters |

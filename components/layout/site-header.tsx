@@ -46,6 +46,14 @@ export function SiteHeader() {
         </Link>
 
         <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="hidden h-8 px-2.5 text-sm font-medium md:inline-flex"
+          >
+            <Link href="/support">Support</Link>
+          </Button>
           {isLoading ? (
             <Skeleton className="h-9 w-20" />
           ) : isAuthenticated ? (

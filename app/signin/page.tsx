@@ -16,6 +16,7 @@ import { APP_NAME } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Sign in",
   description: `Sign in or create an account to start your creator page on ${APP_NAME}.`,
+  robots: { index: false, follow: false },
 };
 
 const perks = [

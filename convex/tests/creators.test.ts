@@ -120,6 +120,26 @@ describe("creators.checkUsername", () => {
   });
 });
 
+describe("creators.listForSitemap", () => {
+  it("returns only active creators with public sitemap fields", async () => {
+    const t = makeTest();
+    await makeCreatorWithUser(t, { username: "ada" });
+    const { creatorId: suspendedId } = await makeCreatorWithUser(t, {
+      username: "resting",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch("creators", suspendedId, { status: "suspended" });
+    });
+
+    const rows = await t.query(api.creators.listForSitemap, {});
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].username).toBe("ada");
+    expect(typeof rows[0].createdAt).toBe("number");
+    expect(Object.keys(rows[0]).sort()).toEqual(["createdAt", "username"]);
+  });
+});
+
 describe("creators.getByUsername", () => {
   it("returns null for unknown usernames and only public paid donations", async () => {
     const t = makeTest();

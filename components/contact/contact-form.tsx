@@ -130,6 +130,14 @@ export function ContactForm() {
       onSubmit={handleSubmit}
       className="toy-card rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-card p-5 shadow-sm sm:p-7"
     >
+      <div className="mb-5">
+        <h2 className="font-toy text-xl font-bold tracking-tight">
+          Send us a message
+        </h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+          Tell us what happened and how we can help. We reply by email.
+        </p>
+      </div>
       <FieldGroup className="gap-5">
         <div className="grid gap-5 sm:grid-cols-2">
           <Field data-invalid={Boolean(errors.name)}>
@@ -181,7 +189,7 @@ export function ContactForm() {
             disabled={pending}
           >
             <SelectTrigger id="contact-topic" className="h-10 w-full">
-              <SelectValue />
+              <SelectValue placeholder="Choose a topic" />
             </SelectTrigger>
             <SelectContent>
               {TOPICS.map((item) => (

@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { APP_NAME } from "@/lib/constants";
-import { formatMoney } from "@/lib/format";
+import { fromMinorUnits } from "@/lib/format";
 import { brandOgImage, OG_SIZE } from "@/lib/og-image";
 
 export const alt = "Creator page on anything4boys";
@@ -21,6 +21,21 @@ export default async function Image({ params }: Props) {
   const initial = creator.displayName.slice(0, 1).toUpperCase();
   const bio = creator.bio?.trim();
   const shortBio = bio && bio.length > 120 ? `${bio.slice(0, 117)}…` : bio;
+  // Satori has no Naira glyph in its default font, so use the ISO code here.
+  const price = `${creator.currency} ${fromMinorUnits(
+    creator.breadPrice,
+    creator.currency,
+  )}`;
+  const nameSize =
+    creator.displayName.length > 30
+      ? 42
+      : creator.displayName.length > 22
+        ? 50
+        : 62;
+  const footerName =
+    creator.displayName.length > 26
+      ? `${creator.displayName.slice(0, 25)}…`
+      : creator.displayName;
 
   return new ImageResponse(
     (
@@ -139,7 +154,7 @@ export default async function Image({ params }: Props) {
             <div
               style={{
                 display: "flex",
-                fontSize: 62,
+                fontSize: nameSize,
                 fontWeight: 800,
                 letterSpacing: -2.4,
                 lineHeight: 1.05,
@@ -187,11 +202,10 @@ export default async function Image({ params }: Props) {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", fontSize: 24, fontWeight: 700 }}>
-              Tear {creator.displayName} small bread.
+              Tear {footerName} small bread.
             </div>
             <div style={{ display: "flex", fontSize: 19, color: "#4b5f5a" }}>
-              {formatMoney(creator.breadPrice, creator.currency)} per bread · no
-              app for fans
+              {price} per bread · no app for fans
             </div>
           </div>
           <div

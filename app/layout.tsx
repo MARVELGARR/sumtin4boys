@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
-  authors: [{ name: `${APP_NAME} team`, url: SITE_URL }],
+  authors: [{ name: `${APP_NAME} team`, url: `${SITE_URL}/about/author` }],
   creator: `${APP_NAME} team`,
   publisher: APP_NAME,
   category: "creator support",

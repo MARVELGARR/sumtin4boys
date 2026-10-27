@@ -21,11 +21,18 @@ function resolveSiteUrl(): string {
   try {
     const url = new URL(configured);
     const host = url.hostname.toLowerCase();
+    // Public canonicals must be HTTPS. Fall back rather than publishing an
+    // insecure or non-web scheme if the env is misconfigured.
+    if (url.protocol !== "https:") return FALLBACK_SITE_URL;
     if (
       host === "localhost" ||
       host === "127.0.0.1" ||
       host === "::1" ||
-      host.endsWith(".local")
+      host.endsWith(".local") ||
+      host.endsWith(".trycloudflare.com") ||
+      host.endsWith(".loca.lt") ||
+      host.endsWith(".ngrok-free.app") ||
+      host.endsWith(".ngrok.io")
     ) {
       return FALLBACK_SITE_URL;
     }
@@ -121,7 +128,12 @@ export function organizationJsonLd() {
     "@id": `${SITE_URL}/#organization`,
     name: APP_NAME,
     url: SITE_URL,
-    logo: absoluteUrl("/icon.svg"),
+    logo: {
+      "@type": "ImageObject",
+      url: absoluteUrl("/apple-icon"),
+      width: 180,
+      height: 180,
+    },
     description: APP_DESCRIPTION,
     areaServed: {
       "@type": "Country",

@@ -3,7 +3,10 @@ import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { absoluteUrl } from "@/lib/seo";
 
-export const revalidate = 3_600;
+// Creator pages change as people join, so regenerate on request rather than
+// freezing the directory at build time. (Convex's server client uses
+// `cache: "no-store"`, which makes a static prerender impossible anyway.)
+export const dynamic = "force-dynamic";
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
   {
@@ -15,6 +18,11 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     url: absoluteUrl("/about"),
     changeFrequency: "monthly",
     priority: 0.7,
+  },
+  {
+    url: absoluteUrl("/about/author"),
+    changeFrequency: "yearly",
+    priority: 0.5,
   },
   {
     url: absoluteUrl("/support"),

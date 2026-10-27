@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Admin",
+  robots: { index: false, follow: false },
 };
 
 export default function AdminPage() {

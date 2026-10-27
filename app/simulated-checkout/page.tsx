@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Simulated checkout",
   description:
     "A clearly-labelled stand-in for Bachs hosted checkout on deployments without a Bachs API key.",
+  robots: { index: false, follow: false },
 };
 
 export default function SimulatedCheckoutPage() {

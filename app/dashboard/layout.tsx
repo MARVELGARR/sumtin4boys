@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Dashboard",
+  robots: { index: false, follow: false },
 };
 
 /**

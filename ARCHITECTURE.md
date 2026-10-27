@@ -1,4 +1,4 @@
-# Architecture: Creator Support Platform ("Buy Me a Coffee"-style SaaS)
+# Architecture: Creator Support Platform ("Tear Small Bread"-style SaaS)
 
 > Stack: **Next.js (App Router) + Convex + Bachs payments**
 > Built with **OpenCode** (multi-agent) using the official **Bachs skill**.
@@ -39,7 +39,7 @@ Creators get a public page (`/[username]`) where supporters can tear them "bread
 ```
 Supporter ──► Next.js  /[username]   (SSR via preloadQuery, live via Convex)
                  │
-                 │  "Buy a coffee"  → Convex action: donations.createCheckout
+                 │  "Tear small bread"  → Convex action: donations.createCheckout
                  ▼
           ┌──────────────────────────────────────────────────────┐
           │ Convex                                               │
@@ -158,7 +158,7 @@ export default defineSchema({
     displayName: v.string(),
     bio: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
-    coffeePrice: v.number(),            // minor units
+    coffeePrice: v.number(),            // minor units; public API exposes breadPrice
     currency: v.string(),               // ISO 4217
     goalAmount: v.optional(v.number()),
     status: v.union(v.literal("active"), v.literal("suspended")),
@@ -259,13 +259,13 @@ export default defineSchema({
 
 1. Rate limit by IP/email (Convex rate-limiter component).
 2. Validate args (quantity bounds, email format, message length, creator active and onboarded).
-3. **Recompute amount server-side** from `creator.coffeePrice * quantity`. Ignore any client amount. Compute `platformFee` from server config.
+3. **Recompute amount server-side** from `creator.coffeePrice * quantity` (the field is exposed publicly as `breadPrice`). Ignore any client amount. Compute `platformFee` from server config.
 4. `internalMutation`: insert donation (`pending`) with a fresh `reference` and `idempotencyKey`, and an `apiOperations` row (`started`).
 5. Call Bachs to create the hosted checkout session (`product_cart`, `reference`, destination seller account, fee, redirect URLs). Send the persisted `Idempotency-Key`.
 6. On success: save `checkoutId`, mark operation `succeeded`, return the checkout URL.
 7. On timeout / 5xx: mark `outcome_unknown`. **Reconcile before resubmitting**; never blindly retry with a new key.
 
-> **Open question:** the skill's one-time flow uses `product_cart`. Confirm in `checkout-sessions.md` whether custom / pay-what-you-want amounts are supported. If not, model coffees as a product with quantities (1, 3, 5) and map them on the server.
+> **Open question:** the skill's one-time flow uses `product_cart`. Confirm in `checkout-sessions.md` whether custom / pay-what-you-want amounts are supported. If not, model bread as a product with quantities (1, 3, 5) and map them on the server.
 
 ### 7.2 Webhook (`POST /bachs/webhook`, Convex `httpAction`)
 
@@ -486,3 +486,30 @@ Next.js public env: only `NEXT_PUBLIC_CONVEX_URL` and non-secret config.
 - Event ordering field to use for "older event" protection
 - Beta/Limited Access status for Connect, subscriptions, payouts, refunds, and supported countries/currencies for creators and supporters
 - Whether OpenCode runs multiple subagents in parallel in your installed version
+
+---
+
+## 19. SEO, Public Content, and Contact
+
+- Canonical origin resolution lives in `lib/seo.ts`. It reads `APP_URL` (the same
+  origin used by checkout redirects/emails), then Vercel's production hostname,
+  then `https://anything4boys.com`. Localhost, LAN, and temporary tunnel hosts
+  are ignored so a dev environment cannot publish a bad canonical or sitemap.
+- `app/layout.tsx` owns `metadataBase`, the default title template, OG/Twitter
+  defaults, robots policy, and site-wide `Organization` + `WebSite` JSON-LD.
+- Every public page exports its own metadata through `pageMetadata()` (canonical,
+  Open Graph, Twitter, keywords) and adds the relevant structured data:
+  `FAQPage` on `/` and `/support`, `AboutPage` on `/about` and
+  `/about/author`, `ProfilePage` on creator pages, and `ContactPage` on
+  `/contact`.
+- `app/sitemap.ts` is dynamic: static marketing routes plus active creator
+  usernames from `creators.listForSitemap`. Suspended creators are omitted.
+  `app/robots.ts` disallows app/private routes and points at the sitemap.
+- `/about`, `/about/author`, `/support`, and `/contact` are indexable. Dashboard,
+  admin, onboarding, sign-in, thanks/reference pages, and simulated checkout are
+  `noindex, nofollow`; unknown creator usernames render a real 404.
+- FAQ answers render in native `<details>` elements, so the full text is in the
+  server-rendered HTML without a client component.
+- `/contact` stores submissions in `contactMessages` and notifies the team on a
+  best-effort basis. It never promises a public support email address that has
+  not been verified.

@@ -134,7 +134,7 @@ Tipping and donation platforms are frequent targets for **card-testing attacks**
    └── Creators must undergo verification (Bachs Connect onboardingStatus: "enabled")
 ```
 
-- **Server-Side Recomputation:** The client cannot manipulate the price. If a client attempts to pass `amount: 10`, the server ignores it and computes `amount = creator.coffeePrice * quantity`.
+- **Server-Side Recomputation:** The client cannot manipulate the price. If a client attempts to pass `amount: 10`, the server ignores it and computes `amount = creator.coffeePrice * quantity` (the stored field is exposed publicly as `breadPrice`).
 - **Velocity Checks:** Rapid successive checkout attempts from a single IP or targeted at a single creator are rejected with HTTP 429 (`rate_limited`).
 - **Creator Verification:** Creators whose pages are marked `status: "suspended"` cannot receive checkouts or request payouts.
 
