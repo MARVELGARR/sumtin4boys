@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { Lock } from "lucide-react";
 import { AdminConsole } from "@/components/admin/admin-console";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
@@ -11,10 +13,16 @@ export const metadata: Metadata = {
 
 export default function AdminPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+    <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+        <Badge variant="outline" className="gap-1 text-muted-foreground">
+          <Lock className="size-3" />
+          Restricted
+        </Badge>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Creators, payouts and payment-pipeline health.
+        Creators, held funds, payouts and payment health.
       </p>
       <div className="mt-8">
         {/* Suspense keeps nuqs' useSearchParams build-safe. */}

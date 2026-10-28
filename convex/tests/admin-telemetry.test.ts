@@ -469,6 +469,9 @@ describe("adminTelemetry.overview", () => {
         ledger: false,
         donations: false,
         payouts: false,
+        webhooks: false,
+        operations: false,
+        messages: false,
       });
 
       const ngn = result.currencies.find((row) => row.currency === "NGN");
@@ -702,6 +705,15 @@ describe("adminTelemetry.creatorDetail", () => {
       status: "requested",
       requestedAt: now - 8 * HOUR_MS,
     });
+    // Cross-currency guard: this USD request must not inflate the NGN creator's
+    // awaiting total or be rendered as NGN.
+    await addPayout(t, {
+      creatorId,
+      amount: 700,
+      currency: "USD",
+      status: "requested",
+      requestedAt: now - 9 * HOUR_MS,
+    });
     await addPayout(t, {
       creatorId,
       amount: 500,
@@ -731,6 +743,8 @@ describe("adminTelemetry.creatorDetail", () => {
         totalSupporters: 4,
         onboardingStatus: "enabled",
         createdAt: expect.any(Number),
+        payoutsAwaiting: 1_000,
+        payoutsSampled: false,
       });
 
       // Amount always comes from the creator balance, even when the pending
@@ -765,6 +779,7 @@ describe("adminTelemetry.creatorDetail", () => {
 
       expect(detail.recentPayouts.map((row) => row.status)).toEqual([
         "requested",
+        "requested",
         "paid",
       ]);
       expect(detail.recentPayouts[0]).toMatchObject({
@@ -772,6 +787,11 @@ describe("adminTelemetry.creatorDetail", () => {
         currency: "NGN",
         method: "manual",
         requestedAt: now - 8 * HOUR_MS,
+      });
+      expect(detail.recentPayouts[1]).toMatchObject({
+        amount: 700,
+        currency: "USD",
+        status: "requested",
       });
 
       expect(detail.recentLedger.map((row) => row.type)).toEqual([
@@ -869,6 +889,13 @@ describe("admin.listCreators telemetry fields", () => {
       amount: 500,
       currency: "NGN",
       status: "processing",
+      requestedAt: now - 3 * HOUR_MS,
+    });
+    await addPayout(t, {
+      creatorId: creatorA,
+      amount: 700,
+      currency: "USD",
+      status: "requested",
       requestedAt: now - 3 * HOUR_MS,
     });
     await addPayout(t, {

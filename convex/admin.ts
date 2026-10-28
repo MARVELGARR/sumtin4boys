@@ -114,17 +114,19 @@ export const listCreators = query({
     }
 
     // Open withdrawals are relatively few; query them by status so the sum
-    // does not depend on walking each creator's payout history.
-    const awaitingByCreator = new Map<Id<"creators">, number>();
+    // does not depend on walking each creator's payout history. Bucket by
+    // currency so a creator's awaiting total never mixes currencies.
+    const awaitingByCreator = new Map<string, number>();
     for (const status of ["requested", "processing"] as const) {
       const open = await ctx.db
         .query("payouts")
         .withIndex("by_status", (q) => q.eq("status", status))
         .take(1000);
       for (const payout of open) {
+        const key = `${payout.creatorId}:${payout.currency}`;
         awaitingByCreator.set(
-          payout.creatorId,
-          (awaitingByCreator.get(payout.creatorId) ?? 0) + payout.amount,
+          key,
+          (awaitingByCreator.get(key) ?? 0) + payout.amount,
         );
       }
     }
@@ -148,7 +150,8 @@ export const listCreators = query({
         onboardingStatus: creator.onboardingStatus,
         createdAt: creator.createdAt,
         nextSettlementAt: nextSettlementByCreator.get(creator._id) ?? null,
-        payoutsAwaiting: awaitingByCreator.get(creator._id) ?? 0,
+        payoutsAwaiting:
+          awaitingByCreator.get(`${creator._id}:${creator.currency}`) ?? 0,
       });
     }
     return rows;

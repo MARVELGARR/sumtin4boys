@@ -1,5 +1,6 @@
 "use client";
 
+import { Component, type ReactNode } from "react";
 import type { FunctionReturnType } from "convex/server";
 import { useQuery } from "convex/react";
 import {
@@ -11,7 +12,6 @@ import {
   Mail,
   ReceiptText,
   Settings2,
-  ShieldCheck,
   TriangleAlert,
   Users,
   Wallet,
@@ -46,14 +46,27 @@ const percentFormatter = new Intl.NumberFormat("en-NG", {
   maximumFractionDigits: 2,
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const SAMPLED_LABELS: Record<keyof Overview["sampled"], string> = {
   creators: "creators",
   ledger: "ledger entries",
   donations: "donations",
   payouts: "payouts",
+  webhooks: "webhook events",
+  operations: "payment operations",
+  messages: "contact messages",
 };
 
 export function AdminOverview() {
+  return (
+    <OverviewErrorBoundary>
+      <AdminOverviewContent />
+    </OverviewErrorBoundary>
+  );
+}
+
+function AdminOverviewContent() {
   const overview = useQuery(api.adminTelemetry.overview, {});
 
   if (overview === undefined) {
@@ -166,6 +179,11 @@ export function AdminOverview() {
 }
 
 function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
+  const feeReversals =
+    bucket.platformFeeReversals === 0
+      ? formatMoney(0, bucket.currency)
+      : formatMoney(-bucket.platformFeeReversals, bucket.currency);
+
   return (
     <Card>
       <CardHeader>
@@ -187,6 +205,9 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
           <div className="mt-1 text-2xl font-semibold tabular-nums">
             {formatMoney(bucket.platformNetRevenue, bucket.currency)}
           </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            What the platform keeps after refund-related fee reversals.
+          </p>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>
               Gross fees{" "}
@@ -197,7 +218,7 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
             <span>
               Fee reversals{" "}
               <span className="font-medium text-foreground tabular-nums">
-                {formatMoney(-bucket.platformFeeReversals, bucket.currency)}
+                {feeReversals}
               </span>
             </span>
           </div>
@@ -268,7 +289,7 @@ function MoneyStat({
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="font-medium tabular-nums">{value}</dd>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      <dd className="text-[11px] text-muted-foreground">{hint}</dd>
     </div>
   );
 }
@@ -306,6 +327,9 @@ function HealthCard({ overview }: { overview: Overview }) {
   const webhookOk = overview.health.webhookFailures24h === 0;
   const operationsOk = overview.health.apiOperationIssues === 0;
   const lastWebhookAt = overview.health.lastWebhookAt;
+  const webhookFresh =
+    lastWebhookAt !== null && overview.now - lastWebhookAt < DAY_MS;
+  const overallOk = webhookOk && operationsOk && webhookFresh;
 
   return (
     <Card>
@@ -319,12 +343,12 @@ function HealthCard({ overview }: { overview: Overview }) {
             variant="secondary"
             className={cn(
               "border-0",
-              webhookOk && operationsOk
+              overallOk
                 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                 : "bg-amber-500/10 text-amber-700 dark:text-amber-400",
             )}
           >
-            {webhookOk && operationsOk ? "Clear" : "Check"}
+            {overallOk ? "Clear" : "Check"}
           </Badge>
         </div>
         <CardDescription>
@@ -350,10 +374,12 @@ function HealthCard({ overview }: { overview: Overview }) {
           icon={<Clock3 />}
           label="Last webhook"
           value={lastWebhookAt ? formatDateTime(lastWebhookAt) : "Never"}
-          ok
+          ok={webhookFresh}
           hint={
             lastWebhookAt
-              ? `${formatRelativeTime(lastWebhookAt)} — most recent event received.`
+              ? webhookFresh
+                ? `${formatRelativeTime(lastWebhookAt)} — most recent event received.`
+                : `${formatRelativeTime(lastWebhookAt)} — no webhook in the last 24 hours.`
               : "No webhook events recorded yet."
           }
         />
@@ -426,14 +452,14 @@ function ConfigCard({ overview }: { overview: Overview }) {
         />
         <ConfigRow
           label="Turnstile"
-          value={
-            config.turnstileConfigured ? "Configured" : "Not configured"
-          }
+          value={config.turnstileConfigured ? "Configured" : "Not configured"}
           tone={config.turnstileConfigured ? "good" : "warning"}
         />
         <ConfigRow
           label="Platform fee"
-          value={percentFormatter.format(config.platformFeeBps / 10_000)}
+          value={`${config.platformFeeBps.toLocaleString()} bps (${percentFormatter.format(
+            config.platformFeeBps / 10_000,
+          )})`}
           tone="neutral"
         />
         <ConfigRow
@@ -494,10 +520,8 @@ function DefinitionsCard() {
       <CardContent>
         <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
           <li>
-            <span className="font-medium text-foreground">
-              Creator-owned
-            </span>{" "}
-            = pending + available ledger balances.
+            <span className="font-medium text-foreground">Creator-owned</span> =
+            pending + available ledger balances.
           </li>
           <li>
             <span className="font-medium text-foreground">
@@ -554,4 +578,32 @@ function OverviewSkeleton() {
       </div>
     </div>
   );
+}
+
+class OverviewErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Could not load the overview</AlertTitle>
+          <AlertDescription>
+            The admin telemetry query failed. Refresh the page, or check that
+            you are still signed in as an admin.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+
+    return this.props.children;
+  }
 }

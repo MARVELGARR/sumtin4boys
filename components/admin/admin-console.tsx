@@ -4,8 +4,11 @@ import { useQuery } from "convex/react";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 import { ShieldAlert } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { AdminOverview } from "@/components/admin/admin-overview";
+import { AuditTable } from "@/components/admin/audit-table";
 import { CreatorsTable } from "@/components/admin/creators-table";
 import { EventsTables } from "@/components/admin/events-tables";
+import { HeldFundsTable } from "@/components/admin/held-funds-table";
 import { MessagesTable } from "@/components/admin/messages-table";
 import { PayoutsTable } from "@/components/admin/payouts-table";
 import {
@@ -18,11 +21,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const ADMIN_TABS = ["creators", "payouts", "events", "messages"] as const;
+const ADMIN_TABS = [
+  "overview",
+  "creators",
+  "held",
+  "payouts",
+  "events",
+  "messages",
+  "audit",
+] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 const tabParser = parseAsStringEnum<AdminTab>([...ADMIN_TABS]).withDefault(
-  "creators",
+  "overview",
 );
 
 /**
@@ -71,23 +82,37 @@ function AdminTabs() {
         void setTab(value as AdminTab);
       }}
     >
-      <TabsList className="h-9 w-full justify-stretch sm:h-8 sm:w-fit">
-        <TabsTrigger value="creators">Creators</TabsTrigger>
-        <TabsTrigger value="payouts">Payouts</TabsTrigger>
-        <TabsTrigger value="events">Events</TabsTrigger>
-        <TabsTrigger value="messages">Messages</TabsTrigger>
-      </TabsList>
-      <TabsContent value="creators">
+      <div className="-mx-4 w-full scrollbar-none overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList className="h-9 w-max min-w-full justify-start sm:h-8 sm:min-w-0">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="creators">Creators</TabsTrigger>
+          <TabsTrigger value="held">Held funds</TabsTrigger>
+          <TabsTrigger value="payouts">Payouts</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="audit">Audit</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="overview" className="mt-2 min-w-0">
+        <AdminOverview />
+      </TabsContent>
+      <TabsContent value="creators" className="mt-2 min-w-0">
         <CreatorsTable />
       </TabsContent>
-      <TabsContent value="payouts">
+      <TabsContent value="held" className="mt-2 min-w-0">
+        <HeldFundsTable />
+      </TabsContent>
+      <TabsContent value="payouts" className="mt-2 min-w-0">
         <PayoutsTable />
       </TabsContent>
-      <TabsContent value="events">
+      <TabsContent value="events" className="mt-2 min-w-0">
         <EventsTables />
       </TabsContent>
-      <TabsContent value="messages">
+      <TabsContent value="messages" className="mt-2 min-w-0">
         <MessagesTable />
+      </TabsContent>
+      <TabsContent value="audit" className="mt-2 min-w-0">
+        <AuditTable />
       </TabsContent>
     </Tabs>
   );

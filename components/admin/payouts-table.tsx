@@ -94,7 +94,7 @@ export function PayoutsTable() {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="-mx-4 overflow-hidden border-y sm:mx-0 sm:rounded-xl sm:border">
+        <div className="-mx-4 overflow-x-auto border-y sm:mx-0 sm:rounded-xl sm:border">
           <Table>
             <TableHeader>
               <TableRow>

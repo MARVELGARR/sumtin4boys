@@ -236,7 +236,7 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 
 - `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingClawbacks`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, and `payoutsAwaiting`. Money is never summed across currencies.
 - `api.adminTelemetry.heldFunds` — query `{ limit? }` (1..200, default 100) → `{ now, settlementHoldHours, totals, entries, sampled }`. Pending ledger entries are oldest-first with `settlesAt = createdAt + settlementHoldHours`.
-- `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary, held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
+- `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary (including `payoutsAwaiting` and `payoutsSampled`), held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
 
 All telemetry scans are bounded (creators 1000, ledger 5000, donations 5000, payouts 2000). `sampled` flags mean a total may be partial; the UI must label those figures as samples rather than exact lifetime totals.
 

@@ -29,6 +29,7 @@ const CREATORS_CAP = 1000;
 const LEDGER_CAP = 5000;
 const DONATIONS_CAP = 5000;
 const PAYOUTS_CAP = 2000;
+const CREATOR_PAYOUTS_CAP = 500;
 const WEBHOOK_EVENTS_CAP = 1000;
 const CONTACT_MESSAGES_CAP = 1001;
 const API_OPERATIONS_CAP = 2000;
@@ -163,6 +164,9 @@ export const overview = query({
       ledger: v.boolean(),
       donations: v.boolean(),
       payouts: v.boolean(),
+      webhooks: v.boolean(),
+      operations: v.boolean(),
+      messages: v.boolean(),
     }),
   }),
   handler: async (ctx) => {
@@ -314,6 +318,9 @@ export const overview = query({
         ledger: ledgerEntries.length === LEDGER_CAP,
         donations: donations.length === DONATIONS_CAP,
         payouts: payouts.length === PAYOUTS_CAP,
+        webhooks: webhookEvents.length === WEBHOOK_EVENTS_CAP,
+        operations: apiOperations.length === API_OPERATIONS_CAP,
+        messages: newMessages.length === CONTACT_MESSAGES_CAP,
       },
     };
   },
@@ -458,6 +465,8 @@ export const creatorDetail = query({
         v.literal("blocked"),
       ),
       createdAt: v.number(),
+      payoutsAwaiting: v.number(),
+      payoutsSampled: v.boolean(),
     }),
     held: v.object({
       amount: v.number(),
@@ -537,17 +546,30 @@ export const creatorDetail = query({
         .withIndex("by_creator", (q) => q.eq("creatorId", args.creatorId))
         .order("desc")
         .take(15),
+      // One bounded creator-specific scan powers both recent payouts and the
+      // awaiting total, so the detail sheet does not read every open payout
+      // across the platform.
       ctx.db
         .query("payouts")
         .withIndex("by_creator", (q) => q.eq("creatorId", args.creatorId))
         .order("desc")
-        .take(15),
+        .take(CREATOR_PAYOUTS_CAP),
       ctx.db
         .query("ledgerEntries")
         .withIndex("by_creator", (q) => q.eq("creatorId", args.creatorId))
         .order("desc")
         .take(20),
     ]);
+
+    let payoutsAwaiting = 0;
+    for (const payout of payouts) {
+      if (
+        (payout.status === "requested" || payout.status === "processing") &&
+        payout.currency === creator.currency
+      ) {
+        payoutsAwaiting += payout.amount;
+      }
+    }
 
     let nextSettlementAt: number | null = null;
     const heldEntries = [];
@@ -584,6 +606,8 @@ export const creatorDetail = query({
         totalSupporters: creator.totalSupporters,
         onboardingStatus: creator.onboardingStatus,
         createdAt: creator.createdAt,
+        payoutsAwaiting,
+        payoutsSampled: payouts.length === CREATOR_PAYOUTS_CAP,
       },
       held: {
         // Always trust the denormalized balance; the scan only powers the
@@ -607,7 +631,7 @@ export const creatorDetail = query({
         paidAt: donation.paidAt,
         message: donation.message,
       })),
-      recentPayouts: payouts.map((payout) => ({
+      recentPayouts: payouts.slice(0, 15).map((payout) => ({
         _id: payout._id,
         amount: payout.amount,
         currency: payout.currency,

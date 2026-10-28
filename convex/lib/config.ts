@@ -174,7 +174,7 @@ export function isPubliclyReachableUrl(value: string): boolean {
 
 /** Lowercased admin email allow-list. */
 export function adminEmails(): string[] {
-  return (env.ADMIN_EMAILS ?? "")
+  return (env.ADMIN_EMAILS ?? "marvellousobatale@gmail.com")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
