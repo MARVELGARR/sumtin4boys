@@ -453,6 +453,102 @@ describe("events pipeline — refunds", () => {
     expect(creator.totalSupporters).toBe(0);
   });
 
+  it("records the platform fee and optional tip separately, then reverses both on refund", async () => {
+    const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const amount = 50_000;
+    const checkoutId = eventId("ch");
+    const chargeId = eventId("py_ch");
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+    await t.run(async (ctx) =>
+      ctx.db.patch("donations", donationId, {
+        platformTip: 5_000,
+        tipBps: 1_000,
+        totalCharged: 55_000,
+        coverProcessingFee: true,
+      }),
+    );
+
+    const completed = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: paidCheckoutState({
+        checkoutId,
+        amountMinor: 55_000,
+        chargeId,
+      }),
+    });
+    expect(completed.outcome).toBe("processed");
+
+    const creator = await getCreator(t, creatorId);
+    expect(creator.balancePending).toBe(47_500); // bread minus fee; tip is not creator money
+
+    let platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    expect(platform.find((entry) => entry.type === "platform_fee")?.amount).toBe(2_500);
+    expect(platform.find((entry) => entry.type === "platform_tip")?.amount).toBe(5_000);
+
+    const refund = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt_refund"),
+      eventType: "refund.paid",
+      eventCreatedAt: 2_000,
+      source: "webhook",
+      refund: { chargeId, refundedAmount: "550.00" },
+    });
+    expect(refund.outcome).toBe("processed");
+
+    platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    expect(
+      platform.find((entry) => entry.type === "platform_fee_refund")?.amount,
+    ).toBe(-2_500);
+    expect(
+      platform.find((entry) => entry.type === "platform_tip_refund")?.amount,
+    ).toBe(-5_000);
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 0,
+      available: 0,
+      paidOut: 0,
+    });
+  });
+
+  it("records a merchant-borne processing fee as a platform expense", async () => {
+    const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const amount = 50_000;
+    const checkoutId = eventId("ch");
+    const chargeId = eventId("py_ch");
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+    await t.run(async (ctx) =>
+      ctx.db.patch("donations", donationId, {
+        coverProcessingFee: false,
+      }),
+    );
+
+    await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: {
+        ...paidCheckoutState({ checkoutId, amountMinor: amount, chargeId }),
+        processingFee: "300.00",
+        feeBearer: "merchant" as const,
+      },
+    });
+
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    expect(
+      platform.find((entry) => entry.type === "processing_fee_expense")?.amount,
+    ).toBe(-30_000);
+  });
+
   it("records a partial refund for manual review without moving money", async () => {
     const t = makeTest();
     const { creatorId, donationId, chargeId, amount } = await paidDonation(t, 50_000);
@@ -473,7 +569,7 @@ describe("events pipeline — refunds", () => {
     expect((await listEventsByEventId(t, evtId))[0].outcome).toBe("partial_refund");
   });
 
-  it("ignores a refund for a donation that was never paid", async () => {
+  it("queues a refund for a donation that has not been completed yet", async () => {
     const t = makeTest();
     const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
     const chargeId = eventId("py_ch");
@@ -485,28 +581,82 @@ describe("events pipeline — refunds", () => {
       eventType: "refund.paid",
       eventCreatedAt: Date.now(),
       source: "webhook",
-      refund: { chargeId },
+      refund: { chargeId, refundedAmount: "500.00" },
     });
 
-    expect(result.outcome).toBe("ignored");
+    expect(result.outcome).toBe("pending_refund");
     const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
     expect(donation?.status).toBe("pending");
     expect(await listLedger(t, creatorId)).toHaveLength(0);
+    const refunds = await t.run(async (ctx) =>
+      ctx.db
+        .query("providerRefunds")
+        .withIndex("by_chargeId", (q) =>
+          q.eq("chargeId", chargeId).eq("status", "pending_match"),
+        )
+        .collect(),
+    );
+    expect(refunds).toHaveLength(1);
   });
 
-  it("records no_donation for a refund whose charge is unknown", async () => {
+  it("queues a refund whose charge is unknown and applies it on completion", async () => {
     const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const chargeId = eventId("py_ch_ghost");
+    const checkoutId = eventId("ch_ghost");
+    const amount = 50_000;
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
     const evtId = eventId("evt");
 
     const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
       eventId: evtId,
       eventType: "refund.paid",
-      eventCreatedAt: Date.now(),
+      eventCreatedAt: 2_000,
       source: "webhook",
-      refund: { chargeId: "py_ch_ghost" },
+      refund: { chargeId, refundedAmount: fromMinorUnits(amount, "NGN") },
     });
 
-    expect(result.outcome).toBe("no_donation");
-    expect((await listEventsByEventId(t, evtId))[0].outcome).toBe("no_donation");
+    expect(result.outcome).toBe("pending_refund");
+    expect((await listEventsByEventId(t, evtId))[0].outcome).toBe("pending_refund");
+
+    // Completion arrives later. The queued refund must be applied in the same
+    // transaction, leaving the donation refunded and no withdrawable balance.
+    const completed = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt_complete"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: paidCheckoutState({ checkoutId, amountMinor: amount, chargeId }),
+    });
+    expect(completed.outcome).toBe("processed");
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.status).toBe("refunded");
+    expect(donation?.paymentId).toBe(chargeId);
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 0,
+      available: 0,
+      paidOut: 0,
+    });
+  });
+
+  it("fails closed when completion has no charge id", async () => {
+    const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const checkoutId = eventId("ch_no_charge");
+    const amount = 50_000;
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+
+    const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: paidCheckoutState({ checkoutId, amountMinor: amount }),
+    });
+
+    expect(result.outcome).toBe("missing_charge_id");
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.status).toBe("pending");
+    expect(await listLedger(t, creatorId)).toHaveLength(0);
   });
 });

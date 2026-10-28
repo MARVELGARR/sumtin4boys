@@ -17,12 +17,14 @@ import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
   MAX_AVATAR_BYTES,
-  MAX_BREAD_PRICE_MINOR,
-  MIN_BREAD_PRICE_MINOR,
   checkUsernameFormat,
   isSupportedCurrency,
   normalizeUsername,
 } from "./lib/validation";
+import {
+  maxBreadPriceMinorFor,
+  minBreadPriceMinorFor,
+} from "./lib/pricing";
 
 // ---------------------------------------------------------------------------
 // Return validators (public shapes)
@@ -253,7 +255,7 @@ export const claimUsername = mutation({
       userId,
       username: format.username,
       displayName: defaultDisplayName(user, format.username),
-      coffeePrice: MIN_BREAD_PRICE_MINOR * 10, // ₦1,000.00 default
+      coffeePrice: minBreadPriceMinorFor("NGN") * 10, // ₦1,000.00 default
       currency: "NGN",
       status: "active",
       balancePending: 0,
@@ -330,6 +332,10 @@ export const updateProfile = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const { creator } = await requireCreator(ctx);
+    const nextCurrency = args.currency?.toUpperCase() ?? creator.currency;
+    if (args.currency !== undefined && !isSupportedCurrency(args.currency)) {
+      throw appError("invalid_input", "That currency is not supported yet.");
+    }
 
     if (args.displayName !== undefined) {
       const displayName = args.displayName.trim();
@@ -358,18 +364,18 @@ export const updateProfile = mutation({
       const price = args.breadPrice;
       if (
         !Number.isSafeInteger(price) ||
-        price < MIN_BREAD_PRICE_MINOR ||
-        price > MAX_BREAD_PRICE_MINOR
+        price < minBreadPriceMinorFor(nextCurrency) ||
+        price > maxBreadPriceMinorFor(nextCurrency)
       ) {
-        throw appError("invalid_input", "That bread price is out of range.");
+        throw appError(
+          "invalid_input",
+          `That bread price is out of range for ${nextCurrency}.`,
+        );
       }
       await ctx.db.patch("creators", creator._id, { coffeePrice: price });
     }
 
     if (args.currency !== undefined) {
-      if (!isSupportedCurrency(args.currency)) {
-        throw appError("invalid_input", "That currency is not supported yet.");
-      }
       const currency = args.currency.toUpperCase();
       if (currency !== creator.currency) {
         // Switching currencies mid-flight would corrupt balances, so it is
@@ -384,6 +390,16 @@ export const updateProfile = mutation({
             "You can't change your currency after your page has received donations.",
           );
         }
+        const effectivePrice = args.breadPrice ?? creator.coffeePrice;
+        if (
+          effectivePrice < minBreadPriceMinorFor(currency) ||
+          effectivePrice > maxBreadPriceMinorFor(currency)
+        ) {
+          throw appError(
+            "invalid_input",
+            `Set a bread price that is valid in ${currency} before switching currencies.`,
+          );
+        }
         await ctx.db.patch("creators", creator._id, { currency });
       }
     }
@@ -393,7 +409,10 @@ export const updateProfile = mutation({
         await ctx.db.patch("creators", creator._id, { goalAmount: undefined });
       } else {
         const goal = args.goalAmount;
-        if (!Number.isSafeInteger(goal) || goal < MIN_BREAD_PRICE_MINOR) {
+        if (
+          !Number.isSafeInteger(goal) ||
+          goal < minBreadPriceMinorFor(nextCurrency)
+        ) {
           throw appError("invalid_input", "That goal amount is out of range.");
         }
         await ctx.db.patch("creators", creator._id, { goalAmount: goal });

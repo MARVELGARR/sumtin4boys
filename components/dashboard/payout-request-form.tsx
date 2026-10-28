@@ -29,6 +29,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { maxPayoutNet, payoutFeeFor } from "@/convex/lib/pricing";
 import { appErrorMessage, formatMoney, fromMinorUnits, parseMajorAmount } from "@/lib/format";
 
 /**
@@ -53,9 +54,12 @@ export function PayoutRequestForm({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const canRequest = available >= minimum;
+  const maxNet = maxPayoutNet(available, currency);
+  const canRequest = maxNet >= minimum;
   const disabled = !canRequest || hasOpenPayout || submitting;
   const parsed = parseMajorAmount(amountInput, currency);
+  const parsedFee = parsed !== null && parsed > 0 ? payoutFeeFor(parsed, currency) : 0;
+  const parsedTotal = parsed !== null && parsed > 0 ? parsed + parsedFee : 0;
 
   function validate(): number | null {
     const amount = parseMajorAmount(amountInput, currency);
@@ -67,9 +71,10 @@ export function PayoutRequestForm({
       setError(`The minimum payout is ${formatMoney(minimum, currency)}.`);
       return null;
     }
-    if (amount > available) {
+    const fee = payoutFeeFor(amount, currency);
+    if (amount + fee > available) {
       setError(
-        `You can withdraw up to ${formatMoney(available, currency)} right now.`,
+        `The ${formatMoney(fee, currency)} payout fee is added on top. The most you can receive right now is ${formatMoney(maxNet, currency)}.`,
       );
       return null;
     }
@@ -109,7 +114,9 @@ export function PayoutRequestForm({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Field data-invalid={Boolean(error)}>
-          <FieldLabel htmlFor="payout-amount">Amount ({currency})</FieldLabel>
+          <FieldLabel htmlFor="payout-amount">
+            Amount you receive ({currency})
+          </FieldLabel>
           <div className="flex items-center gap-2">
             <Input
               id="payout-amount"
@@ -126,9 +133,9 @@ export function PayoutRequestForm({
               variant="ghost"
               size="sm"
               className="h-10 shrink-0"
-              disabled={disabled || available <= 0}
+              disabled={disabled || maxNet <= 0}
               onClick={() => {
-                setAmountInput(fromMinorUnits(available, currency));
+                setAmountInput(fromMinorUnits(maxNet, currency));
                 setError(null);
               }}
             >
@@ -136,9 +143,17 @@ export function PayoutRequestForm({
             </Button>
           </div>
           <FieldDescription>
-            Minimum payout: {formatMoney(minimum, currency)} · Available:{" "}
-            {formatMoney(available, currency)}
+            Minimum: {formatMoney(minimum, currency)} · Available:{" "}
+            {formatMoney(available, currency)} · Bachs&apos; payout fee is added
+            on top.
           </FieldDescription>
+          {parsed !== null && parsed > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              You receive {formatMoney(parsed, currency)} · fee{" "}
+              {formatMoney(parsedFee, currency)} · total reserved{" "}
+              {formatMoney(parsedTotal, currency)}
+            </p>
+          ) : null}
           <FieldError>{error}</FieldError>
         </Field>
 
@@ -148,8 +163,8 @@ export function PayoutRequestForm({
           </p>
         ) : !canRequest ? (
           <p className="text-sm text-muted-foreground">
-            You need at least {formatMoney(minimum, currency)} available before
-            you can request a payout.
+            You need at least {formatMoney(minimum, currency)} plus the payout
+            fee available before you can request a payout.
           </p>
         ) : null}
 
@@ -167,11 +182,16 @@ export function PayoutRequestForm({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                Request {parsed !== null ? formatMoney(parsed, currency) : "a payout"}?
+                Request{" "}
+                {parsed !== null ? formatMoney(parsed, currency) : "a payout"}{" "}
+                net?
               </AlertDialogTitle>
               <AlertDialogDescription>
-                This reserves the amount from your available balance. Payouts
-                can&apos;t be cancelled once requested.
+                You receive{" "}
+                {parsed !== null ? formatMoney(parsed, currency) : "the amount"}.
+                A {formatMoney(parsedFee, currency)} payout fee is added on top,
+                so {formatMoney(parsedTotal, currency)} is reserved from your
+                balance. Payouts can&apos;t be cancelled once requested.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -59,19 +59,17 @@ const app = defineApp({
      * platform's own balance. See docs/PAYMENTS.md.
      */
     CONNECT_ENABLED: v.optional(v.string()),
-    /** Platform fee in basis points of each donation. Default 500 = 5%. */
+    /**
+     * Legacy platform fee for currencies other than NGN/USD. NGN (5%) and USD
+     * (10%) are fixed by `convex/lib/pricing.ts`; this only applies to other
+     * currencies. Default 500 = 5%.
+     */
     PLATFORM_FEE_BPS: v.optional(v.string()),
     /**
      * How long (in hours) a settled donation stays pending before it becomes
      * available for payout. Default 24.
      */
     SETTLEMENT_HOLD_HOURS: v.optional(v.string()),
-    /**
-     * Minimum payout size in minor units of the creator's currency.
-     * Default 100000 (₦1,000.00).
-     */
-    MIN_PAYOUT_MINOR: v.optional(v.string()),
-
     // ---------------------------------------------------------------------
     // App
     // ---------------------------------------------------------------------

@@ -51,6 +51,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SAMPLED_LABELS: Record<keyof Overview["sampled"], string> = {
   creators: "creators",
   ledger: "ledger entries",
+  platformLedger: "platform ledger entries",
   donations: "donations",
   payouts: "payouts",
   webhooks: "webhook events",
@@ -200,15 +201,52 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
       <CardContent className="flex flex-col gap-3">
         <div className="rounded-lg bg-muted/60 p-3">
           <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Platform net revenue
+            Total platform net
           </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">
-            {formatMoney(bucket.platformNetRevenue, bucket.currency)}
+            {formatMoney(bucket.platformTotalNet, bucket.currency)}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            What the platform keeps after refund-related fee reversals.
+            Fees + tips + payout fees − processing costs + adjustments.
           </p>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div>
+              <dt>Fee revenue (net)</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {formatMoney(bucket.platformNetRevenue, bucket.currency)}
+              </dd>
+            </div>
+            <div>
+              <dt>Tips (net)</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {formatMoney(bucket.platformTipsNet, bucket.currency)}
+              </dd>
+            </div>
+            <div>
+              <dt>Payout fees (net)</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {formatMoney(bucket.payoutFeesNet, bucket.currency)}
+              </dd>
+            </div>
+            <div>
+              <dt>Processing costs</dt>
+              <dd className="font-medium text-foreground tabular-nums">
+                {formatMoney(
+                  -bucket.processingFeeExpenses,
+                  bucket.currency,
+                )}
+              </dd>
+            </div>
+            {bucket.platformAdjustments !== 0 ? (
+              <div>
+                <dt>Platform adjustments</dt>
+                <dd className="font-medium text-foreground tabular-nums">
+                  {formatMoney(bucket.platformAdjustments, bucket.currency)}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
             <span>
               Gross fees{" "}
               <span className="font-medium text-foreground tabular-nums">
@@ -221,6 +259,34 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
                 {feeReversals}
               </span>
             </span>
+            <span>
+              Tips gross{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {formatMoney(bucket.platformTipsGross, bucket.currency)}
+              </span>
+            </span>
+            {bucket.platformTipReversals > 0 ? (
+              <span>
+                Tip reversals{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatMoney(
+                    -bucket.platformTipReversals,
+                    bucket.currency,
+                  )}
+                </span>
+              </span>
+            ) : null}
+            {bucket.payoutFeeExpenses > 0 ? (
+              <span>
+                Payout fee cost{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatMoney(
+                    -bucket.payoutFeeExpenses,
+                    bucket.currency,
+                  )}
+                </span>
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -228,12 +294,12 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
           <MoneyStat
             label="Creator-owned total"
             value={formatMoney(bucket.creatorOwned, bucket.currency)}
-            hint="Pending + available"
+            hint="Held + available + payouts awaiting + their fees"
           />
           <MoneyStat
             label="Held for settlement"
             value={formatMoney(bucket.heldForSettlement, bucket.currency)}
-            hint="Not yet available"
+            hint="Net pending; unlocks after the hold"
           />
           <MoneyStat
             label="Available to creators"
@@ -243,7 +309,12 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
           <MoneyStat
             label="Payouts awaiting"
             value={formatMoney(bucket.payoutsAwaiting, bucket.currency)}
-            hint="Requested or processing"
+            hint="Net amount for requested or processing withdrawals"
+          />
+          <MoneyStat
+            label="Payout fees held"
+            value={formatMoney(bucket.payoutFeesAwaiting, bucket.currency)}
+            hint="Pass-through withdrawal fees reserved with open payouts"
           />
           <MoneyStat
             label="Paid out lifetime"
@@ -251,9 +322,9 @@ function CurrencyCard({ bucket }: { bucket: CurrencyBucket }) {
             hint="Already sent"
           />
           <MoneyStat
-            label="Pending clawbacks"
-            value={formatMoney(bucket.pendingClawbacks, bucket.currency)}
-            hint="Negative pending entries"
+            label="Pending deductions"
+            value={formatMoney(bucket.pendingDeductions, bucket.currency)}
+            hint="Fees, refunds, adjustments; already netted out"
           />
         </dl>
 
@@ -456,10 +527,10 @@ function ConfigCard({ overview }: { overview: Overview }) {
           tone={config.turnstileConfigured ? "good" : "warning"}
         />
         <ConfigRow
-          label="Platform fee"
+          label="Platform fee (NGN)"
           value={`${config.platformFeeBps.toLocaleString()} bps (${percentFormatter.format(
             config.platformFeeBps / 10_000,
-          )})`}
+          )}) · USD 10%`}
           tone="neutral"
         />
         <ConfigRow
@@ -469,6 +540,18 @@ function ConfigCard({ overview }: { overview: Overview }) {
           }`}
           tone="neutral"
         />
+        <div className="rounded-lg bg-muted/60 p-2.5">
+          <div className="text-xs font-medium text-muted-foreground">
+            Bachs webhook URL
+          </div>
+          <code className="mt-1 block break-all text-xs font-semibold">
+            {config.webhookUrl || "Deployment site URL is not configured"}
+          </code>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Register this exact HTTPS URL in the Bachs dashboard. Never use the
+            .convex.cloud URL or a trailing slash.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -521,25 +604,37 @@ function DefinitionsCard() {
         <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
           <li>
             <span className="font-medium text-foreground">Creator-owned</span> =
-            pending + available ledger balances.
+            held for settlement + available + payouts awaiting + payout fees
+            held. This is the full amount reserved for creators and their
+            requested withdrawals.
           </li>
           <li>
             <span className="font-medium text-foreground">
               Held for settlement
             </span>{" "}
-            = pending entries that become available after the hold period.
+            = net pending entries that become available after the hold period.
           </li>
           <li>
             <span className="font-medium text-foreground">
-              Platform net revenue
+              Pending deductions
             </span>{" "}
-            = fee entries minus fee reversals from refunds.
+            = negative pending entries such as fees, refunds and adjustments.
+            They are already netted out of held for settlement.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">
+              Total platform net
+            </span>{" "}
+            = fee revenue + tips + payout fees − processing costs + platform
+            adjustments. Fee revenue is fee entries minus refund reversals.
           </li>
           <li>
             <span className="font-medium text-foreground">
               Payouts awaiting
             </span>{" "}
-            = requested or processing withdrawals not yet paid.
+            = net amount for requested or processing withdrawals not yet paid.
+            Payout fees held = the provider fee reserved on top of those
+            withdrawals.
           </li>
           <li>
             <span className="font-medium text-foreground">

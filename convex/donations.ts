@@ -9,11 +9,15 @@ import {
   connectEnabled,
   isPubliclyReachableUrl,
   paymentsConfigured,
-  platformFeeFor,
   resolvePaymentsDriver,
 } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
+import {
+  computeDonationPricing,
+  PRICING_VERSION,
+  normalizeTipBps,
+} from "./lib/pricing";
 import { verifyTurnstileToken } from "./lib/turnstile";
 import {
   MAX_QUANTITY,
@@ -72,6 +76,8 @@ const donationRowValidator = v.object({
   amount: v.number(),
   platformFee: v.number(),
   netAmount: v.number(),
+  platformTip: v.optional(v.number()),
+  totalCharged: v.optional(v.number()),
   currency: v.string(),
   status: donationStatusValidator,
   createdAt: v.number(),
@@ -88,6 +94,8 @@ type CheckoutRequestFields = {
   supporterEmail: string;
   message: string | undefined;
   isPrivate: boolean;
+  tipBps: number;
+  coverProcessingFee: boolean;
 };
 
 function sameCheckoutRequest(
@@ -101,7 +109,9 @@ function sameCheckoutRequest(
     donation.supporterName === fields.supporterName &&
     donation.supporterEmail === fields.supporterEmail &&
     (donation.message ?? undefined) === fields.message &&
-    donation.isPrivate === fields.isPrivate
+    donation.isPrivate === fields.isPrivate &&
+    (donation.tipBps ?? 0) === fields.tipBps &&
+    (donation.coverProcessingFee ?? false) === fields.coverProcessingFee
   );
 }
 
@@ -125,6 +135,10 @@ export const startCheckout = internalMutation({
     supporterEmail: v.string(),
     message: v.optional(v.string()),
     isPrivate: v.boolean(),
+    /** Optional platform tip, 0–1000 bps. */
+    tipBps: v.number(),
+    /** Whether the supporter pays Bachs' processing fee on top. */
+    coverProcessingFee: v.boolean(),
   },
   returns: v.object({
     donationId: v.id("donations"),
@@ -179,6 +193,14 @@ export const startCheckout = internalMutation({
         `Messages can be at most ${MESSAGE_MAX_LENGTH} characters.`,
       );
     }
+    if (
+      !Number.isSafeInteger(args.tipBps) ||
+      args.tipBps < 0 ||
+      args.tipBps > 1_000
+    ) {
+      throw appError("invalid_input", "That platform tip is out of range.");
+    }
+    const tipBps = normalizeTipBps(args.tipBps);
 
     if (!paymentsConfigured()) {
       throw appError(
@@ -226,6 +248,8 @@ export const startCheckout = internalMutation({
         supporterEmail,
         message,
         isPrivate: args.isPrivate,
+        tipBps,
+        coverProcessingFee: args.coverProcessingFee,
       });
       if (!requestMatches) {
         throw appError(
@@ -286,8 +310,7 @@ export const startCheckout = internalMutation({
     if (!Number.isSafeInteger(amount) || amount <= 0) {
       throw appError("invalid_input", "That amount is out of range.");
     }
-    const platformFee = platformFeeFor(amount);
-    const netAmount = amount - platformFee;
+    const pricing = computeDonationPricing(amount, creator.currency, tipBps);
 
     const driver = resolvePaymentsDriver();
     const reference = `a4b_${crypto.randomUUID().replace(/-/g, "")}`;
@@ -301,8 +324,14 @@ export const startCheckout = internalMutation({
       isPrivate: args.isPrivate,
       quantity,
       amount,
-      platformFee,
-      netAmount,
+      platformFee: pricing.platformFee,
+      netAmount: pricing.netAmount,
+      platformTip: pricing.platformTip,
+      tipBps: pricing.tipBps,
+      totalCharged: pricing.totalCharged,
+      coverProcessingFee: args.coverProcessingFee,
+      pricingVersion: PRICING_VERSION,
+      processingFeeStatus: "pending",
       currency: creator.currency,
       reference,
       driver,
@@ -463,6 +492,10 @@ export const createCheckout = action({
     supporterEmail: v.string(),
     message: v.optional(v.string()),
     isPrivate: v.boolean(),
+    /** Optional platform tip, 0–1000 bps. */
+    tipBps: v.number(),
+    /** Whether the supporter pays Bachs' processing fee on top. */
+    coverProcessingFee: v.boolean(),
     /** Cloudflare Turnstile token; required when Turnstile is configured. */
     turnstileToken: v.optional(v.string()),
   },
@@ -984,6 +1017,8 @@ export const listMine = query({
         amount: donation.amount,
         platformFee: donation.platformFee,
         netAmount: donation.netAmount,
+        platformTip: donation.platformTip,
+        totalCharged: donation.totalCharged,
         currency: donation.currency,
         status: donation.status,
         createdAt: donation.createdAt,
@@ -994,9 +1029,9 @@ export const listMine = query({
 });
 
 /**
- * Dashboard summary. Counts are computed over a bounded scan (500 rows per
- * status); `countsTruncated` flags when a count hit that cap, so the UI can
- * say "500+".
+ * Dashboard summary. Status counts other than `paid` use a bounded scan (500
+ * rows per status) and flag truncation. `paid` is the creator's exact lifetime
+ * counter, so the UI never has to show a misleading "500+".
  */
 export const getMyStats = query({
   args: {},
@@ -1004,7 +1039,8 @@ export const getMyStats = query({
     currency: v.string(),
     totals: v.object({
       raised: v.number(),
-      supporters: v.number(),
+      /** Exact lifetime paid-support count, not unique supporters. */
+      paidSupports: v.number(),
     }),
     balances: v.object({
       pending: v.number(),
@@ -1034,21 +1070,22 @@ export const getMyStats = query({
         .take(CAP + 1);
       return rows.length;
     };
-    const [paid, pending, unresolved, refunded, abandoned] = await Promise.all([
-      countStatus("paid"),
+    const [pending, unresolved, refunded, abandoned] = await Promise.all([
       countStatus("pending"),
       countStatus("unresolved"),
       countStatus("refunded"),
       countStatus("abandoned"),
     ]);
-    const truncated = [paid, pending, unresolved, refunded, abandoned].some(
+    const truncated = [pending, unresolved, refunded, abandoned].some(
       (count) => count > CAP,
     );
     return {
       currency: creator.currency,
       totals: {
         raised: creator.totalRaised,
-        supporters: creator.totalSupporters,
+        // Exact lifetime count of paid support, not unique people. The UI
+        // labels this "Paid supports" so it does not imply one person each.
+        paidSupports: creator.totalSupporters,
       },
       balances: {
         pending: creator.balancePending,
@@ -1056,7 +1093,7 @@ export const getMyStats = query({
         paidOut: creator.balancePaidOut,
       },
       counts: {
-        paid: Math.min(paid, CAP),
+        paid: creator.totalSupporters,
         pending: Math.min(pending, CAP),
         unresolved: Math.min(unresolved, CAP),
         refunded: Math.min(refunded, CAP),

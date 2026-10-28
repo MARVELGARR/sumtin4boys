@@ -99,7 +99,7 @@ export function PayoutsTable() {
             <TableHeader>
               <TableRow>
                 <TableHead>Creator</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Net amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Details</TableHead>
                 <TableHead className="text-right">Requested</TableHead>
@@ -183,6 +183,15 @@ function PayoutRowItem({ payout }: { payout: PayoutRow }) {
       </TableCell>
       <TableCell className="text-right font-medium tabular-nums">
         {formatMoney(payout.amount, payout.currency)}
+        {(payout.fee ?? 0) > 0 ? (
+          <div className="text-[11px] font-normal text-muted-foreground">
+            fee {formatMoney(payout.fee ?? 0, payout.currency)} · reserved{" "}
+            {formatMoney(
+              payout.totalDebited ?? payout.amount,
+              payout.currency,
+            )}
+          </div>
+        ) : null}
       </TableCell>
       <TableCell>
         <PayoutStatusBadge status={payout.status} />

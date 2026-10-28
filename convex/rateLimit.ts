@@ -49,4 +49,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 60,
   },
+  /** Admin balance adjustments: protect against accidental/repeated loops. */
+  adminAdjustmentPerActor: {
+    kind: "token bucket",
+    rate: 20,
+    period: HOUR,
+    capacity: 20,
+  },
 });

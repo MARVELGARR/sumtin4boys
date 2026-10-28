@@ -27,8 +27,11 @@ export function buildCheckoutPayload(
   const redirectBase = checkoutRedirectBase();
   const connectActive =
     connectEnabled() && creator.onboardingStatus === "enabled" && creator.sellerAccountId;
+  const platformTip = donation.platformTip ?? 0;
+  const totalCharged = donation.totalCharged ?? donation.amount + platformTip;
   return {
     amount: fromMinorUnits(donation.amount, donation.currency),
+    chargeAmount: fromMinorUnits(totalCharged, donation.currency),
     currency: donation.currency,
     reference: donation.reference,
     idempotencyKey: checkoutIdempotencyKey(donation.reference),
@@ -38,7 +41,12 @@ export function buildCheckoutPayload(
     cancelUrl: `${redirectBase}/checkout/cancel?username=${encodeURIComponent(creator.username)}`,
     creatorUsername: creator.username,
     donationId: donation._id,
-    platformFee: fromMinorUnits(donation.platformFee, donation.currency),
+    platformFee: fromMinorUnits(
+      donation.platformFee + platformTip,
+      donation.currency,
+    ),
+    platformTip: fromMinorUnits(platformTip, donation.currency),
+    coverProcessingFee: donation.coverProcessingFee ?? false,
     connectDestination: connectActive ? creator.sellerAccountId : undefined,
   };
 }

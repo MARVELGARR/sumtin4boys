@@ -8,6 +8,7 @@ import {
   forUser,
   getBalances,
   listLedger,
+  makeCreator,
   makeCreatorWithUser,
   makeTest,
   makeUser,
@@ -128,6 +129,8 @@ describe("payouts.request", () => {
     const payout = await t.run(async (ctx) => ctx.db.get("payouts", payoutId));
     expect(payout?.creatorId).toBe(creatorId);
     expect(payout?.amount).toBe(100_000);
+    expect(payout?.fee).toBe(5_000);
+    expect(payout?.totalDebited).toBe(105_000);
     expect(payout?.currency).toBe("NGN");
     expect(payout?.status).toBe("requested");
     expect(payout?.method).toBe("manual");
@@ -136,18 +139,21 @@ describe("payouts.request", () => {
 
     const entries = await listLedger(t, creatorId);
     const payoutEntry = entries.find((entry) => entry.type === "payout");
-    expect(payoutEntry?.amount).toBe(-100_000);
+    expect(payoutEntry?.amount).toBe(-105_000);
     expect(payoutEntry?.settlementStatus).toBe("settled");
     expect(payoutEntry?.payoutId).toBe(payoutId);
 
     expect(await getBalances(t, creatorId)).toEqual({
       pending: 0,
-      available: 280_000,
+      available: 275_000,
       paidOut: 0,
     });
 
     const balances = await forUser(t, userId).query(api.payouts.getBalances, {});
     expect(balances.minimum).toBe(MIN_PAYOUT_MINOR_DEFAULT);
+    expect(balances.withdrawable).toBe(275_000);
+    expect(balances.processing).toBe(100_000);
+    expect(balances.processingFees).toBe(5_000);
     expect(balances.connectMode).toBe(false);
     expect(balances.hasOpenPayout).toBe(true);
 
@@ -157,6 +163,44 @@ describe("payouts.request", () => {
     expect(page.page).toHaveLength(1);
     expect(page.page[0]._id).toBe(payoutId);
     expect(page.page[0].status).toBe("requested");
+  });
+
+  it("uses per-currency minimums and adds the payout fee on top", async () => {
+    const t = makeTest();
+    const usdUserId = await makeUser(t, "usd@test.com");
+    const usdCreatorId = await makeCreator(t, usdUserId, {
+      username: "dollar",
+      currency: "USD",
+      coffeePrice: 1_000,
+      balanceAvailable: 5_000,
+    });
+    const usd = { userId: usdUserId, creatorId: usdCreatorId };
+
+    await expect(
+      requestPayout(t, usd.userId, 999),
+    ).rejects.toMatchObject({ data: { code: "below_minimum_payout" } });
+
+    const requested = await requestPayout(t, usd.userId, 1_000);
+    const payout = await t.run(async (ctx) =>
+      ctx.db.get("payouts", requested.payoutId),
+    );
+    expect(payout?.amount).toBe(1_000);
+    expect(payout?.fee).toBe(100);
+    expect(payout?.totalDebited).toBe(1_100);
+    expect(
+      await t.run(async (ctx) => ctx.db.get("creators", usd.creatorId)),
+    ).toMatchObject({ balanceAvailable: 3_900 });
+
+    const ngnUserId = await makeUser(t, "naira@test.com");
+    await makeCreator(t, ngnUserId, {
+      username: "naira",
+      currency: "NGN",
+      balanceAvailable: 100_000,
+    });
+    const ngn = { userId: ngnUserId };
+    await expect(
+      requestPayout(t, ngn.userId, 100_000),
+    ).rejects.toMatchObject({ data: { code: "insufficient_available" } });
   });
 
   it("allows only one open payout at a time", async () => {
@@ -241,7 +285,7 @@ describe("admin payout resolution", () => {
 
       const entries = await listLedger(t, creatorId);
       const reversal = entries.find((entry) => entry.type === "payout_reversal");
-      expect(reversal?.amount).toBe(100_000);
+      expect(reversal?.amount).toBe(105_000);
       expect(reversal?.settlementStatus).toBe("settled");
       expect(reversal?.payoutId).toBe(payoutId);
 
@@ -259,7 +303,7 @@ describe("admin payout resolution", () => {
         creator: {
           status: "active",
           balancePending: 0,
-          balanceAvailable: 280_000,
+          balanceAvailable: 275_000,
           balancePaidOut: 0,
         },
       });
@@ -286,7 +330,7 @@ describe("admin payout resolution", () => {
 
   it("markPayoutPaid records the reference and lifetime paid-out total", async () => {
     const t = makeTest();
-    const { payoutId, adminId, creatorId } = await requestedPayout(t);
+    const { payoutId, adminId, creatorId, userId } = await requestedPayout(t);
 
     await withEnv({ ADMIN_EMAILS: "admin@test.com" }, async () => {
       await forUser(t, adminId).mutation(api.admin.markPayoutPaid, {
@@ -301,9 +345,19 @@ describe("admin payout resolution", () => {
 
       expect(await getBalances(t, creatorId)).toEqual({
         pending: 0,
-        available: 280_000,
+        available: 275_000,
         paidOut: 100_000,
       });
+      const balances = await forUser(t, userId).query(
+        api.payouts.getBalances,
+        {},
+      );
+      expect(balances.netEarned).toBe(380_000);
+      expect(balances.processing).toBe(0);
+      expect(balances.processingFees).toBe(0);
+      expect(
+        await t.run(async (ctx) => ctx.db.get("creators", creatorId)),
+      ).toMatchObject({ balancePayoutFeesPaid: 5_000 });
 
       const audit = await forUser(t, adminId).query(api.admin.listAuditLog, {});
       expect(audit).toHaveLength(1);
@@ -313,7 +367,7 @@ describe("admin payout resolution", () => {
         creator: {
           status: "active",
           balancePending: 0,
-          balanceAvailable: 280_000,
+          balanceAvailable: 275_000,
           balancePaidOut: 0,
         },
       });
@@ -323,7 +377,7 @@ describe("admin payout resolution", () => {
         creator: {
           status: "active",
           balancePending: 0,
-          balanceAvailable: 280_000,
+          balanceAvailable: 275_000,
           balancePaidOut: 100_000,
         },
       });

@@ -31,6 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { TurnstileWidget } from "@/components/creator/turnstile-widget";
+import { computeDonationPricing } from "@/convex/lib/pricing";
 import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
@@ -99,6 +100,10 @@ export function DonateCard({
   const [supporterEmail, setSupporterEmail] = useState("");
   const [message, setMessage] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  /** Optional platform tip, in basis points (0–1000). Default off. */
+  const [tipBps, setTipBps] = useState(0);
+  /** Default on: the supporter pays Bachs' actual processing fee on top. */
+  const [coverProcessingFee, setCoverProcessingFee] = useState(true);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -117,7 +122,9 @@ export function DonateCard({
     return attemptIdRef.current;
   }
 
-  const total = breadPrice * quantity;
+  const breadSubtotal = breadPrice * quantity;
+  const pricing = computeDonationPricing(breadSubtotal, currency, tipBps);
+  const total = pricing.totalCharged;
 
   const handleTurnstileToken = useCallback((token: string | null) => {
     setTurnstileToken(token);
@@ -171,6 +178,8 @@ export function DonateCard({
         supporterName: supporterName.trim(),
         supporterEmail: supporterEmail.trim(),
         isPrivate,
+        tipBps,
+        coverProcessingFee,
         ...(trimmedMessage ? { message: trimmedMessage } : {}),
         ...(turnstileToken ? { turnstileToken } : {}),
       });
@@ -428,20 +437,93 @@ export function DonateCard({
             />
           </Field>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 px-3.5 py-3">
-            <div className="flex items-center gap-2.5">
-              <BreadBuddy size={27} />
-              <div className="flex flex-col text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {quantity} {quantity === 1 ? "bread" : "breads"}
-                </span>
-                <span>{formatMoney(breadPrice, currency)} each</span>
-              </div>
+          <Field>
+            <div className="flex items-center justify-between gap-2">
+              <FieldTitle>Tip the platform?</FieldTitle>
+              <span className="text-[11px] text-muted-foreground">
+                optional · 0–10%
+              </span>
             </div>
-            <span className="font-toy text-xl font-bold tabular-nums">
-              {formatMoney(total, currency)}
-            </span>
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 500, 1_000].map((preset) => {
+                const active = tipBps === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setTipBps(preset)}
+                    aria-pressed={active}
+                    disabled={pending}
+                    className={cn(
+                      "touch-manipulation rounded-xl border-2 px-2 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
+                      active
+                        ? "border-primary bg-[var(--toy-ochre)]/45"
+                        : "border-[var(--toy-ink)]/10 bg-background/60 hover:bg-muted/60",
+                    )}
+                  >
+                    {preset === 0 ? "No tip" : `${preset / 100}%`}
+                  </button>
+                );
+              })}
+            </div>
+            <FieldDescription>
+              Supports the platform, not {displayName}. Leave it at no tip —
+              their bread is unchanged.
+            </FieldDescription>
+          </Field>
+
+          <div className="flex flex-col gap-2 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 px-3.5 py-3">
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>
+                {quantity} {quantity === 1 ? "bread" : "breads"} ×{" "}
+                {formatMoney(breadPrice, currency)}
+              </span>
+              <span className="tabular-nums">
+                {formatMoney(breadSubtotal, currency)}
+              </span>
+            </div>
+            {pricing.platformTip > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>Platform tip ({tipBps / 100}%)</span>
+                <span className="tabular-nums">
+                  {formatMoney(pricing.platformTip, currency)}
+                </span>
+              </div>
+            ) : null}
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--toy-ink)]/10 pt-2">
+              <div className="flex items-center gap-2.5">
+                <BreadBuddy size={27} />
+                <span className="text-sm font-medium">Bread + tip</span>
+              </div>
+              <span className="font-toy text-xl font-bold tabular-nums">
+                {formatMoney(total, currency)}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {coverProcessingFee
+                ? "Bachs adds its actual processing fee on top at checkout."
+                : "Bachs' processing fee is deducted from the creator's proceeds."}
+            </p>
           </div>
+
+          <Field orientation="horizontal">
+            <div className="flex flex-col gap-1">
+              <FieldLabel htmlFor="donate-cover-fee">
+                Cover the processing fee
+              </FieldLabel>
+              <FieldDescription>
+                {coverProcessingFee
+                  ? "Bachs adds its exact processing fee on top at checkout."
+                  : `The processing fee is deducted from ${displayName}'s proceeds.`}
+              </FieldDescription>
+            </div>
+            <Switch
+              id="donate-cover-fee"
+              checked={coverProcessingFee}
+              onCheckedChange={setCoverProcessingFee}
+              disabled={pending}
+            />
+          </Field>
 
           {mode.turnstileRequired && mode.turnstileSiteKey ? (
             <Field data-invalid={errors.captcha ? true : undefined}>

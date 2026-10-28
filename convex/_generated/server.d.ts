@@ -39,7 +39,6 @@ type Env = {
   readonly CHECKOUT_REDIRECT_URL: string | undefined;
   readonly CONNECT_ENABLED: string | undefined;
   readonly EMAIL_FROM: string | undefined;
-  readonly MIN_PAYOUT_MINOR: string | undefined;
   readonly PAYMENTS_DRIVER: "bachs" | "simulated" | undefined;
   readonly PLATFORM_FEE_BPS: string | undefined;
   readonly RESEND_API_KEY: string | undefined;

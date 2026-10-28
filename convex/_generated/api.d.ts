@@ -29,6 +29,7 @@ import type * as lib_config from "../lib/config.js";
 import type * as lib_errors from "../lib/errors.js";
 import type * as lib_guards from "../lib/guards.js";
 import type * as lib_money from "../lib/money.js";
+import type * as lib_pricing from "../lib/pricing.js";
 import type * as lib_resend from "../lib/resend.js";
 import type * as lib_turnstile from "../lib/turnstile.js";
 import type * as lib_validation from "../lib/validation.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "lib/errors": typeof lib_errors;
   "lib/guards": typeof lib_guards;
   "lib/money": typeof lib_money;
+  "lib/pricing": typeof lib_pricing;
   "lib/resend": typeof lib_resend;
   "lib/turnstile": typeof lib_turnstile;
   "lib/validation": typeof lib_validation;

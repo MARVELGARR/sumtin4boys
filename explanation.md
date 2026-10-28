@@ -120,7 +120,7 @@ Tipping and donation platforms are frequent targets for **card-testing attacks**
        │
        ▼
 2. Input Sanitization & Bounds
-   ├── MIN_PAYOUT_MINOR & minimum donation validation
+   ├── Per-currency pricing helpers & minimum validation
    ├── Maximum quantity cap (MAX_QUANTITY = 50 breads)
    ├── Display name & message length caps (140-500 chars)
    └── Strict regex validation on usernames & emails
@@ -291,16 +291,16 @@ Two periodic background crons run automatically:
 Located in [`convex/payouts.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/convex/payouts.ts) and [`convex/admin.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/convex/admin.ts).
 
 ```
-Creator clicks "Request Payout" (Amount: ₦20,000)
+Creator clicks "Request Payout" (Net amount: ₦20,000)
                     │
                     ▼
-Validate: amount >= MIN_PAYOUT_MINOR && amount <= balanceAvailable
+Validate: net >= per-currency minimum && net + fee <= withdrawable
                     │
                     ▼
 Convex Mutation (Atomic):
-  1. Insert payout row (status: "requested")
-  2. Append ledger entry: -₦20,000 (settled)
-  3. Creator balanceAvailable immediately drops by ₦20,000
+  1. Insert payout row (status: "requested", amount: ₦20,000, fee: ₦50)
+  2. Append ledger entry: -₦20,050 (settled)
+  3. Creator balanceAvailable immediately drops by ₦20,050
                     │
                     ▼
 Admin Reviews in Admin Dashboard (/admin)
@@ -337,21 +337,23 @@ Located in [`convex/lib/guards.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/co
 | `BACHS_WEBHOOK_SECRET` | `string` | *(None)* | Secret used to verify cryptographic webhook signatures (`X-Bachs-Signature-V2`). |
 | `PAYMENTS_DRIVER` | `"bachs" \| "simulated"` | `"simulated"` *(if key missing)* | When set to `bachs`, enforces live network gateway calls. `simulated` provides full local test checkouts. |
 | `CONNECT_ENABLED` | `"true" \| "false"` | `"false"` | Activates Bachs Connect destination charges once marketplace access is granted. |
-| `PLATFORM_FEE_BPS` | `string` | `"500"` (5%) | Platform commission in basis points (500 bps = 5.00%). |
+| `PLATFORM_FEE_BPS` | `string` | `"500"` (5%) | Legacy fallback for currencies other than NGN/USD. NGN is fixed at 5% (₦20 minimum) and USD at 10% ($1 minimum) in `convex/lib/pricing.ts`. |
 | `SETTLEMENT_HOLD_HOURS`| `string` | `"24"` | Holding window before received funds become withdrawable. |
-| `MIN_PAYOUT_MINOR` | `string` | `"100000"` (₦1,000) | Minimum allowable withdrawal in minor units. |
 | `APP_URL` | `string` | `"http://localhost:3000"` | Final Next.js origin used for email links and the destination of checkout redirects. |
 | `CHECKOUT_REDIRECT_URL` | `string` | `CONVEX_SITE_URL` | Public base URL given to Bachs for checkout success/cancel redirects. The Convex-site routes 302 back to `APP_URL`, so local development needs no tunnel. |
 | `ADMIN_EMAILS` | `string` | *(None)* | Comma-separated list of admin emails for RBAC access. |
 
-### 5.2 Active Sandbox Key & Testing Strategy
+### 5.2 Sandbox Key & Testing Strategy
 
-The workspace `.env.local` is configured with the following verified credentials:
+Do **not** commit real Bachs keys. Set the sandbox key as a Convex deployment
+environment variable (or in an ignored local env file):
 
 ```bash
-BACHS_API_KEY=sk_sandbox_c06fc346_p2GHjIrdQm_1rTUhuD-FRJOX1Vep8pj32XC1PvhHA5M
+BACHS_API_KEY=sk_sandbox_your_key_here
 BACHS_ENV=sandbox
 ```
+
+Rotate any key that has ever appeared in a document, commit, or chat log.
 
 #### Dual Driver Testing:
 1. **Bachs Sandbox Mode (`PAYMENTS_DRIVER=bachs`):**

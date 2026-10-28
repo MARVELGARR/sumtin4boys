@@ -26,6 +26,8 @@ export type AppErrorCode =
   | "payout_pending"
   | "below_minimum_payout"
   | "connect_mode"
+  | "currency_mismatch"
+  | "invalid_payout"
   | "not_configured"
   | "simulated_only"
   | "already_resolved"

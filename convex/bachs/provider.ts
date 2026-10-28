@@ -33,6 +33,12 @@ export const checkoutStateValidator = v.object({
   currency: v.optional(v.string()),
   reference: v.optional(v.string()),
   chargeId: v.optional(v.string()),
+  /** Bachs' actual processing fee, when the payment object reports it. */
+  processingFee: v.optional(v.string()),
+  /** Who bore the processing fee, when known. */
+  feeBearer: v.optional(
+    v.union(v.literal("customer"), v.literal("merchant")),
+  ),
 });
 export type CheckoutState = Infer<typeof checkoutStateValidator>;
 
@@ -48,8 +54,10 @@ export type EventSource = Infer<typeof eventSourceValidator>;
 // ---------------------------------------------------------------------------
 
 export const checkoutPayloadValidator = v.object({
-  /** Decimal string at currency precision. */
+  /** Bread subtotal, decimal string at currency precision. */
   amount: v.string(),
+  /** Bread subtotal + platform tip. The amount Bachs should charge. */
+  chargeAmount: v.optional(v.string()),
   currency: v.string(),
   reference: v.string(),
   /** Idempotency-Key for the provider request. Reused verbatim on retries. */
@@ -60,8 +68,12 @@ export const checkoutPayloadValidator = v.object({
   cancelUrl: v.string(),
   creatorUsername: v.string(),
   donationId: v.id("donations"),
-  /** Platform cut, decimal string. */
+  /** Platform cut (excluding the optional tip), decimal string. */
   platformFee: v.string(),
+  /** Optional supporter tip for the platform, decimal string. */
+  platformTip: v.optional(v.string()),
+  /** Bachs adds its actual processing fee on top when true. */
+  coverProcessingFee: v.optional(v.boolean()),
   /**
    * Connected account id when Connect mode is on and the creator is
    * onboarded. Its presence switches the checkout to a destination charge.

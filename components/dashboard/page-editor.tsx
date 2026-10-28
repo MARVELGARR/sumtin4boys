@@ -52,14 +52,16 @@ import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
   MAX_AVATAR_BYTES,
-  MAX_BREAD_PRICE_MINOR,
-  MIN_BREAD_PRICE_MINOR,
   SUPPORTED_CURRENCIES,
   appErrorMessage,
   formatMoney,
   fromMinorUnits,
   parseMajorAmount,
 } from "@/lib/format";
+import {
+  maxBreadPriceMinorFor,
+  minBreadPriceMinorFor,
+} from "@/convex/lib/pricing";
 
 /** Shape of `updateProfile`'s args, built incrementally from changed fields. */
 type ProfilePatch = {
@@ -173,17 +175,16 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
       nextErrors.displayName = `Keep it to ${DISPLAY_NAME_MAX_LENGTH} characters or fewer.`;
     }
 
+    const minBread = minBreadPriceMinorFor(currency);
+    const maxBread = maxBreadPriceMinorFor(currency);
     const breadPrice = parseMajorAmount(breadPriceInput, currency);
     if (breadPrice === null) {
       nextErrors.breadPrice = "Enter a valid amount.";
-    } else if (
-      breadPrice < MIN_BREAD_PRICE_MINOR ||
-      breadPrice > MAX_BREAD_PRICE_MINOR
-    ) {
+    } else if (breadPrice < minBread || breadPrice > maxBread) {
       nextErrors.breadPrice = `Price must be between ${formatMoney(
-        MIN_BREAD_PRICE_MINOR,
+        minBread,
         currency,
-      )} and ${formatMoney(MAX_BREAD_PRICE_MINOR, currency)}.`;
+      )} and ${formatMoney(maxBread, currency)}.`;
     }
 
     const trimmedGoal = goalInput.trim();
@@ -192,9 +193,9 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
       const parsed = parseMajorAmount(trimmedGoal, currency);
       if (parsed === null) {
         nextErrors.goalAmount = "Enter a valid amount.";
-      } else if (parsed < MIN_BREAD_PRICE_MINOR) {
+      } else if (parsed < minBread) {
         nextErrors.goalAmount = `Goals start at ${formatMoney(
-          MIN_BREAD_PRICE_MINOR,
+          minBread,
           currency,
         )}.`;
       } else {
@@ -381,8 +382,8 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
                   onChange={(event) => setBreadPriceInput(event.target.value)}
                 />
                 <FieldDescription>
-                  {formatMoney(MIN_BREAD_PRICE_MINOR, currency)} –{" "}
-                  {formatMoney(MAX_BREAD_PRICE_MINOR, currency)}
+                  {formatMoney(minBreadPriceMinorFor(currency), currency)} –{" "}
+                  {formatMoney(maxBreadPriceMinorFor(currency), currency)}
                 </FieldDescription>
                 <FieldError>{errors.breadPrice}</FieldError>
               </Field>

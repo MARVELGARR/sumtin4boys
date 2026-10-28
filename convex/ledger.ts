@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { settlementHoldHours } from "./lib/config";
+import { isSupportedCurrency } from "./lib/validation";
 
 /**
  * The ledger.
@@ -35,6 +36,30 @@ export interface LedgerEntryInput {
   payoutId?: Id<"payouts">;
   settlementStatus: "pending" | "settled";
   note?: string;
+  adjustmentKey?: string;
+  reference?: string;
+}
+
+const POSITIVE_TYPES = new Set<LedgerEntryType>([
+  "donation",
+  "fee_reversal",
+  "payout_reversal",
+]);
+const NEGATIVE_TYPES = new Set<LedgerEntryType>(["fee", "refund", "payout"]);
+
+function assertLedgerEntry(entry: LedgerEntryInput): void {
+  if (!Number.isSafeInteger(entry.amount) || entry.amount === 0) {
+    throw new Error("Ledger amount must be a non-zero safe integer in minor units.");
+  }
+  if (!isSupportedCurrency(entry.currency)) {
+    throw new Error(`Unsupported ledger currency: ${entry.currency}`);
+  }
+  if (POSITIVE_TYPES.has(entry.type) && entry.amount < 0) {
+    throw new Error(`Ledger entry ${entry.type} must be positive.`);
+  }
+  if (NEGATIVE_TYPES.has(entry.type) && entry.amount > 0) {
+    throw new Error(`Ledger entry ${entry.type} must be negative.`);
+  }
 }
 
 /**
@@ -45,24 +70,34 @@ export async function applyLedgerEntry(
   ctx: MutationCtx,
   entry: LedgerEntryInput,
 ): Promise<Id<"ledgerEntries">> {
-  const now = Date.now();
-  const entryId = await ctx.db.insert("ledgerEntries", {
-    creatorId: entry.creatorId,
-    type: entry.type,
-    amount: entry.amount,
-    currency: entry.currency,
-    donationId: entry.donationId,
-    payoutId: entry.payoutId,
-    settlementStatus: entry.settlementStatus,
-    settledAt: entry.settlementStatus === "settled" ? now : undefined,
-    note: entry.note,
-    createdAt: now,
-  });
+  assertLedgerEntry(entry);
 
   const creator = await ctx.db.get("creators", entry.creatorId);
   if (!creator) {
     throw new Error(`Ledger entry references missing creator ${entry.creatorId}`);
   }
+  if (creator.currency.toUpperCase() !== entry.currency.toUpperCase()) {
+    throw new Error(
+      `Ledger currency ${entry.currency} does not match creator currency ${creator.currency}.`,
+    );
+  }
+
+  const now = Date.now();
+  const entryId = await ctx.db.insert("ledgerEntries", {
+    creatorId: entry.creatorId,
+    type: entry.type,
+    amount: entry.amount,
+    currency: creator.currency,
+    donationId: entry.donationId,
+    payoutId: entry.payoutId,
+    settlementStatus: entry.settlementStatus,
+    settledAt: entry.settlementStatus === "settled" ? now : undefined,
+    note: entry.note,
+    adjustmentKey: entry.adjustmentKey,
+    reference: entry.reference,
+    createdAt: now,
+  });
+
   if (entry.settlementStatus === "settled") {
     await ctx.db.patch("creators", entry.creatorId, {
       balanceAvailable: creator.balanceAvailable + entry.amount,
@@ -73,6 +108,48 @@ export async function applyLedgerEntry(
     });
   }
   return entryId;
+}
+
+// ---------------------------------------------------------------------------
+// Platform ledger
+// ---------------------------------------------------------------------------
+
+export type PlatformLedgerEntryType = Doc<"platformLedgerEntries">["type"];
+
+export interface PlatformLedgerEntryInput {
+  type: PlatformLedgerEntryType;
+  /** Signed minor units. Revenue positive; cost/reversal negative. */
+  amount: number;
+  currency: string;
+  donationId?: Id<"donations">;
+  payoutId?: Id<"payouts">;
+  note?: string;
+}
+
+/** Append a platform-only money movement. Never touches creator balances. */
+export async function applyPlatformLedgerEntry(
+  ctx: MutationCtx,
+  entry: PlatformLedgerEntryInput,
+): Promise<Id<"platformLedgerEntries">> {
+  if (!Number.isSafeInteger(entry.amount)) {
+    throw new Error("Platform ledger amount must be a safe integer in minor units.");
+  }
+  if (!isSupportedCurrency(entry.currency)) {
+    throw new Error(`Unsupported platform ledger currency: ${entry.currency}`);
+  }
+  if (entry.amount === 0) {
+    // Zero-value entries add noise without changing any total.
+    throw new Error("Platform ledger amount must not be zero.");
+  }
+  return await ctx.db.insert("platformLedgerEntries", {
+    type: entry.type,
+    amount: entry.amount,
+    currency: entry.currency.toUpperCase(),
+    donationId: entry.donationId,
+    payoutId: entry.payoutId,
+    note: entry.note,
+    createdAt: Date.now(),
+  });
 }
 
 /**

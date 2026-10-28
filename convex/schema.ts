@@ -49,6 +49,11 @@ export default defineSchema({
     balanceAvailable: v.number(),
     /** Lifetime amount already paid out. */
     balancePaidOut: v.number(),
+    /**
+     * Lifetime provider payout fees the creator paid. Optional so existing
+     * creators read as zero until their next successful payout.
+     */
+    balancePayoutFeesPaid: v.optional(v.number()),
 
     // --- Lifetime counters (simple totals, adjusted on refunds).
     totalRaised: v.number(),
@@ -87,6 +92,31 @@ export default defineSchema({
     platformFee: v.number(),
     /** amount - platformFee, minor units. */
     netAmount: v.number(),
+    /**
+     * Optional supporter tip for the platform, in minor units. Added to the
+     * supporter's charge but never to the creator's balance.
+     */
+    platformTip: v.optional(v.number()),
+    /** Tip in basis points of the bread subtotal (0–1000). */
+    tipBps: v.optional(v.number()),
+    /** Bread subtotal + platform tip. Bachs may add its processing fee on top. */
+    totalCharged: v.optional(v.number()),
+    /** Whether the supporter chose to pay Bachs' processing fee on top. */
+    coverProcessingFee: v.optional(v.boolean()),
+    /** Pricing policy version used at checkout creation. */
+    pricingVersion: v.optional(v.string()),
+    /** Bachs processing fee reported for this payment, if available. */
+    processingFee: v.optional(v.number()),
+    processingFeeCurrency: v.optional(v.string()),
+    /** Who actually bore the processing fee, once the provider reports it. */
+    feeBearer: v.optional(
+      v.union(v.literal("customer"), v.literal("merchant")),
+    ),
+    processingFeeStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("recorded"), v.literal("unavailable")),
+    ),
+    /** Amount returned to the supporter by a partial/full refund. */
+    refundedAmount: v.optional(v.number()),
     currency: v.string(),
     /** Unique, human-readable id sent to Bachs and shown to the supporter. */
     reference: v.string(),
@@ -170,19 +200,57 @@ export default defineSchema({
     settlementStatus: v.union(v.literal("pending"), v.literal("settled")),
     settledAt: v.optional(v.number()),
     note: v.optional(v.string()),
+    /** Client-supplied idempotency key for admin adjustments. */
+    adjustmentKey: v.optional(v.string()),
+    /** Bank/provider/audit reference for the movement. */
+    reference: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_creator", ["creatorId", "createdAt"])
     .index("by_donation", ["donationId"])
     .index("by_payout", ["payoutId"])
+    .index("by_adjustmentKey", ["creatorId", "adjustmentKey"])
     .index("by_settlement", ["settlementStatus", "createdAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Platform ledger: money that belongs to the platform, never the creator.
+  // Per-currency only. Processing fees are pass-through costs, not revenue.
+  // ---------------------------------------------------------------------------
+  platformLedgerEntries: defineTable({
+    type: v.union(
+      v.literal("platform_fee"),
+      v.literal("platform_tip"),
+      v.literal("processing_fee_expense"),
+      v.literal("platform_fee_refund"),
+      v.literal("platform_tip_refund"),
+      v.literal("payout_fee_collected"),
+      v.literal("payout_fee_expense"),
+      v.literal("adjustment"),
+    ),
+    /** Signed minor units: revenue positive, cost/reversal negative. */
+    amount: v.number(),
+    currency: v.string(),
+    donationId: v.optional(v.id("donations")),
+    payoutId: v.optional(v.id("payouts")),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_type_createdAt", ["type", "createdAt"])
+    .index("by_donation", ["donationId"])
+    .index("by_payout", ["payoutId"]),
 
   // ---------------------------------------------------------------------------
   // Payouts: creator withdrawal requests.
   // ---------------------------------------------------------------------------
   payouts: defineTable({
     creatorId: v.id("creators"),
+    /** Net amount the creator receives. */
     amount: v.number(),
+    /** Provider withdrawal fee, added on top of `amount`. */
+    fee: v.optional(v.number()),
+    /** amount + fee; the total debited from the creator balance. */
+    totalDebited: v.optional(v.number()),
     currency: v.string(),
     status: v.union(
       v.literal("requested"),
@@ -225,6 +293,44 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_creator", ["creatorId", "receivedAt"])
     .index("by_receivedAt", ["receivedAt"]),
+
+  // ---------------------------------------------------------------------------
+  // Provider refunds: durable queue for refunds that arrive before the
+  // matching payment/completion. A refund must NEVER be discarded just because
+  // the completion has not landed yet; it is matched when the charge id does.
+  // ---------------------------------------------------------------------------
+  providerRefunds: defineTable({
+    /** Webhook event that delivered this refund (deduped globally). */
+    eventId: v.string(),
+    eventCreatedAt: v.number(),
+    /** Provider charge/payment id. Empty when the event did not carry one. */
+    chargeId: v.string(),
+    /** Provider checkout/session id, when available. */
+    checkoutId: v.string(),
+    /** Provider refund id, when available. */
+    refundId: v.string(),
+    donationId: v.optional(v.id("donations")),
+    creatorId: v.optional(v.id("creators")),
+    /** Refunded amount in minor units, when the event reported it. */
+    amount: v.optional(v.number()),
+    /** Raw decimal string from the provider, retained for later matching. */
+    amountRaw: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending_match"),
+      v.literal("applied"),
+      v.literal("partial"),
+      v.literal("unmatched"),
+    ),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+    appliedAt: v.optional(v.number()),
+  })
+    .index("by_chargeId", ["chargeId", "status"])
+    .index("by_checkoutId", ["checkoutId", "status"])
+    .index("by_eventId", ["eventId"])
+    .index("by_status", ["status", "createdAt"])
+    .index("by_donation", ["donationId"]),
 
   // ---------------------------------------------------------------------------
   // Admin audit log: append-only record of privileged actions.

@@ -6,6 +6,7 @@ import {
   resolvePaymentsDriver,
   settlementHoldHours,
   turnstileConfigured,
+  webhookUrl,
 } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireAdmin } from "./lib/guards";
@@ -27,6 +28,7 @@ import { requireAdmin } from "./lib/guards";
 
 const CREATORS_CAP = 1000;
 const LEDGER_CAP = 5000;
+const PLATFORM_LEDGER_CAP = 5000;
 const DONATIONS_CAP = 5000;
 const PAYOUTS_CAP = 2000;
 const CREATOR_PAYOUTS_CAP = 500;
@@ -53,15 +55,25 @@ const currencyBucketValidator = v.object({
   creatorPending: v.number(),
   creatorAvailable: v.number(),
   heldForSettlement: v.number(),
-  pendingClawbacks: v.number(),
+  pendingDeductions: v.number(),
   nextSettlementAt: v.union(v.number(), v.null()),
   platformGrossFees: v.number(),
   platformFeeReversals: v.number(),
   platformNetRevenue: v.number(),
+  platformTipsGross: v.number(),
+  platformTipReversals: v.number(),
+  platformTipsNet: v.number(),
+  processingFeeExpenses: v.number(),
+  payoutFeesCollected: v.number(),
+  payoutFeeExpenses: v.number(),
+  payoutFeesNet: v.number(),
+  platformAdjustments: v.number(),
+  platformTotalNet: v.number(),
   grossDonationVolume: v.number(),
   refundedVolume: v.number(),
   paidOutLifetime: v.number(),
   payoutsAwaiting: v.number(),
+  payoutFeesAwaiting: v.number(),
 });
 
 type CurrencyBucket = {
@@ -70,15 +82,25 @@ type CurrencyBucket = {
   creatorPending: number;
   creatorAvailable: number;
   heldForSettlement: number;
-  pendingClawbacks: number;
+  pendingDeductions: number;
   nextSettlementAt: number | null;
   platformGrossFees: number;
   platformFeeReversals: number;
   platformNetRevenue: number;
+  platformTipsGross: number;
+  platformTipReversals: number;
+  platformTipsNet: number;
+  processingFeeExpenses: number;
+  payoutFeesCollected: number;
+  payoutFeeExpenses: number;
+  payoutFeesNet: number;
+  platformAdjustments: number;
+  platformTotalNet: number;
   grossDonationVolume: number;
   refundedVolume: number;
   paidOutLifetime: number;
   payoutsAwaiting: number;
+  payoutFeesAwaiting: number;
 };
 
 function bucketFor(
@@ -93,15 +115,25 @@ function bucketFor(
       creatorPending: 0,
       creatorAvailable: 0,
       heldForSettlement: 0,
-      pendingClawbacks: 0,
+      pendingDeductions: 0,
       nextSettlementAt: null,
       platformGrossFees: 0,
       platformFeeReversals: 0,
       platformNetRevenue: 0,
+      platformTipsGross: 0,
+      platformTipReversals: 0,
+      platformTipsNet: 0,
+      processingFeeExpenses: 0,
+      payoutFeesCollected: 0,
+      payoutFeeExpenses: 0,
+      payoutFeesNet: 0,
+      platformAdjustments: 0,
+      platformTotalNet: 0,
       grossDonationVolume: 0,
       refundedVolume: 0,
       paidOutLifetime: 0,
       payoutsAwaiting: 0,
+      payoutFeesAwaiting: 0,
     };
     buckets.set(currency, bucket);
   }
@@ -123,8 +155,28 @@ function sortBuckets(buckets: Map<string, CurrencyBucket>): CurrencyBucket[] {
   return [...buckets.values()]
     .map((bucket) => ({
       ...bucket,
+      // Everything still owed to creators: uncommitted balances plus money
+      // already reserved by an open payout. Without the last term, requesting
+      // a withdrawal makes creator-owned money appear to vanish until it is
+      // either paid or fails.
+      creatorOwned:
+        bucket.creatorPending +
+        bucket.creatorAvailable +
+        bucket.payoutsAwaiting +
+        bucket.payoutFeesAwaiting,
       platformNetRevenue: bucket.platformGrossFees - bucket.platformFeeReversals,
-      pendingClawbacks: Math.abs(bucket.pendingClawbacks),
+      platformTipsNet:
+        bucket.platformTipsGross - bucket.platformTipReversals,
+      payoutFeesNet: bucket.payoutFeesCollected - bucket.payoutFeeExpenses,
+      platformTotalNet:
+        bucket.platformGrossFees -
+        bucket.platformFeeReversals +
+        bucket.platformTipsGross -
+        bucket.platformTipReversals +
+        bucket.payoutFeesCollected -
+        bucket.payoutFeeExpenses -
+        bucket.processingFeeExpenses +
+        bucket.platformAdjustments,
       refundedVolume: Math.abs(bucket.refundedVolume),
     }))
     .sort((a, b) => a.currency.localeCompare(b.currency));
@@ -140,6 +192,8 @@ export const overview = query({
       paymentsDriver: v.union(v.literal("bachs"), v.literal("simulated")),
       connectEnabled: v.boolean(),
       turnstileConfigured: v.boolean(),
+      /** Empty only when the deployment's site URL is unavailable. */
+      webhookUrl: v.string(),
     }),
     counts: v.object({
       creatorsTotal: v.number(),
@@ -162,6 +216,7 @@ export const overview = query({
     sampled: v.object({
       creators: v.boolean(),
       ledger: v.boolean(),
+      platformLedger: v.boolean(),
       donations: v.boolean(),
       payouts: v.boolean(),
       webhooks: v.boolean(),
@@ -183,6 +238,12 @@ export const overview = query({
       .query("ledgerEntries")
       .order("desc")
       .take(LEDGER_CAP);
+    // Platform-only revenue/cost entries (tips, processing costs, payout
+    // fees). Creator balances never come from this table.
+    const platformLedgerEntries = await ctx.db
+      .query("platformLedgerEntries")
+      .order("desc")
+      .take(PLATFORM_LEDGER_CAP);
     const donations = await ctx.db
       .query("donations")
       .order("desc")
@@ -218,15 +279,17 @@ export const overview = query({
       const bucket = bucketFor(buckets, creator.currency);
       bucket.creatorPending += creator.balancePending;
       bucket.creatorAvailable += creator.balanceAvailable;
-      bucket.creatorOwned += creator.balancePending + creator.balanceAvailable;
       bucket.paidOutLifetime += creator.balancePaidOut;
     }
 
     for (const entry of ledgerEntries) {
       const bucket = bucketFor(buckets, entry.currency);
       if (entry.settlementStatus === "pending") {
-        if (entry.amount > 0) bucket.heldForSettlement += entry.amount;
-        else bucket.pendingClawbacks += entry.amount;
+        // Net pending money: positive credits minus fees/deductions. This is
+        // what will become available when the hold expires, and it matches the
+        // creator's balancePending.
+        bucket.heldForSettlement += entry.amount;
+        if (entry.amount < 0) bucket.pendingDeductions += -entry.amount;
         trackNextSettlement(bucket, entry.createdAt, holdMs);
       }
       if (entry.type === "fee") {
@@ -241,13 +304,45 @@ export const overview = query({
       }
     }
 
+    for (const entry of platformLedgerEntries) {
+      const bucket = bucketFor(buckets, entry.currency);
+      switch (entry.type) {
+        case "platform_tip":
+          bucket.platformTipsGross += entry.amount;
+          break;
+        case "platform_tip_refund":
+          bucket.platformTipReversals += -entry.amount;
+          break;
+        case "processing_fee_expense":
+          bucket.processingFeeExpenses += -entry.amount;
+          break;
+        case "payout_fee_collected":
+          bucket.payoutFeesCollected += entry.amount;
+          break;
+        case "payout_fee_expense":
+          bucket.payoutFeeExpenses += -entry.amount;
+          break;
+        case "adjustment":
+          bucket.platformAdjustments += entry.amount;
+          break;
+        case "platform_fee":
+        case "platform_fee_refund":
+          // Fee revenue is reported from the creator ledger for continuity
+          // with the existing overview definition; counting it here too would
+          // double the fee total.
+          break;
+      }
+    }
+
     let payoutsRequested = 0;
     let payoutsProcessing = 0;
     for (const payout of payouts) {
       if (payout.status === "requested") payoutsRequested += 1;
       else if (payout.status === "processing") payoutsProcessing += 1;
       if (payout.status === "requested" || payout.status === "processing") {
-        bucketFor(buckets, payout.currency).payoutsAwaiting += payout.amount;
+        const bucket = bucketFor(buckets, payout.currency);
+        bucket.payoutsAwaiting += payout.amount;
+        bucket.payoutFeesAwaiting += payout.fee ?? 0;
       }
     }
 
@@ -294,6 +389,7 @@ export const overview = query({
         paymentsDriver: resolvePaymentsDriver(),
         connectEnabled: connectEnabled(),
         turnstileConfigured: turnstileConfigured(),
+        webhookUrl: webhookUrl(),
       },
       counts: {
         creatorsTotal: creators.length,
@@ -316,6 +412,8 @@ export const overview = query({
       sampled: {
         creators: creators.length === CREATORS_CAP,
         ledger: ledgerEntries.length === LEDGER_CAP,
+        platformLedger:
+          platformLedgerEntries.length === PLATFORM_LEDGER_CAP,
         donations: donations.length === DONATIONS_CAP,
         payouts: payouts.length === PAYOUTS_CAP,
         webhooks: webhookEvents.length === WEBHOOK_EVENTS_CAP,
@@ -466,6 +564,7 @@ export const creatorDetail = query({
       ),
       createdAt: v.number(),
       payoutsAwaiting: v.number(),
+      payoutFeesAwaiting: v.number(),
       payoutsSampled: v.boolean(),
     }),
     held: v.object({
@@ -498,6 +597,8 @@ export const creatorDetail = query({
       v.object({
         _id: v.id("payouts"),
         amount: v.number(),
+        fee: v.optional(v.number()),
+        totalDebited: v.optional(v.number()),
         currency: v.string(),
         status: v.union(
           v.literal("requested"),
@@ -562,12 +663,14 @@ export const creatorDetail = query({
     ]);
 
     let payoutsAwaiting = 0;
+    let payoutFeesAwaiting = 0;
     for (const payout of payouts) {
       if (
         (payout.status === "requested" || payout.status === "processing") &&
         payout.currency === creator.currency
       ) {
         payoutsAwaiting += payout.amount;
+        payoutFeesAwaiting += payout.fee ?? 0;
       }
     }
 
@@ -607,6 +710,7 @@ export const creatorDetail = query({
         onboardingStatus: creator.onboardingStatus,
         createdAt: creator.createdAt,
         payoutsAwaiting,
+        payoutFeesAwaiting,
         payoutsSampled: payouts.length === CREATOR_PAYOUTS_CAP,
       },
       held: {
@@ -634,6 +738,8 @@ export const creatorDetail = query({
       recentPayouts: payouts.slice(0, 15).map((payout) => ({
         _id: payout._id,
         amount: payout.amount,
+        fee: payout.fee,
+        totalDebited: payout.totalDebited,
         currency: payout.currency,
         status: payout.status,
         method: payout.method,

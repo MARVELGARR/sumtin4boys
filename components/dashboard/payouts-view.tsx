@@ -73,7 +73,7 @@ export function PayoutsView() {
       ) : (
         <PayoutRequestForm
           minimum={balances.minimum}
-          available={balances.available}
+          available={balances.withdrawable}
           currency={balances.currency}
           hasOpenPayout={balances.hasOpenPayout}
         />
@@ -87,25 +87,33 @@ export function PayoutsView() {
 function BalanceCards({ balances }: { balances: Balances }) {
   const cards = [
     {
-      label: "Pending",
+      label: "Clearing (net)",
       value: balances.pending,
-      hint: "Still clearing before it's available",
+      hint: "After any pending fees or refund clawbacks",
     },
     {
-      label: "Available",
-      value: balances.available,
-      hint: "Ready to withdraw",
+      label: "Available to withdraw",
+      value: balances.withdrawable,
+      hint: "After open payout reservations and pending deductions",
+    },
+    {
+      label: "Processing (reserved)",
+      value: balances.processingTotal,
+      hint: `Net ${formatMoney(
+        balances.processing,
+        balances.currency,
+      )} + fee ${formatMoney(balances.processingFees, balances.currency)}`,
     },
     {
       label: "Paid out",
       value: balances.paidOut,
-      hint: "Already sent to you",
+      hint: "Net amount already sent to you",
     },
   ];
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {cards.map((card) => (
           <Card key={card.label} size="sm">
             <CardHeader>
@@ -119,7 +127,8 @@ function BalanceCards({ balances }: { balances: Balances }) {
         ))}
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        Minimum payout: {formatMoney(balances.minimum, balances.currency)}
+        Minimum: {formatMoney(balances.minimum, balances.currency)} · Payout fee
+        is added on top.
       </p>
     </div>
   );
@@ -261,9 +270,22 @@ function PayoutHistory() {
                   <div className="flex items-start justify-between gap-3">
                     <span className="font-medium tabular-nums">
                       {formatMoney(payout.amount, payout.currency)}
+                      <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                        net
+                      </span>
                     </span>
                     <PayoutStatusBadge status={payout.status} />
                   </div>
+                  {(payout.fee ?? 0) > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Fee {formatMoney(payout.fee ?? 0, payout.currency)} · total
+                      reserved{" "}
+                      {formatMoney(
+                        payout.totalDebited ?? payout.amount,
+                        payout.currency,
+                      )}
+                    </p>
+                  ) : null}
                   <p className="mt-2 text-xs text-muted-foreground">
                     Requested {formatDateTime(payout.requestedAt)}
                     {payout.processedAt
@@ -288,7 +310,7 @@ function PayoutHistory() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Net amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Details</TableHead>
                     <TableHead className="text-right">Requested</TableHead>
@@ -300,6 +322,11 @@ function PayoutHistory() {
                     <TableRow key={payout._id}>
                       <TableCell className="text-right font-medium tabular-nums">
                         {formatMoney(payout.amount, payout.currency)}
+                        {(payout.fee ?? 0) > 0 ? (
+                          <div className="text-[11px] font-normal text-muted-foreground">
+                            fee {formatMoney(payout.fee ?? 0, payout.currency)}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <PayoutStatusBadge status={payout.status} />

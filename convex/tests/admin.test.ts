@@ -6,6 +6,7 @@ import {
   forUser,
   getBalances,
   getCreator,
+  listLedger,
   makeCreatorWithUser,
   makeTest,
   makeUser,
@@ -195,6 +196,67 @@ describe("admin tooling", () => {
       await expect(
         forUser(t, unverifiedAdmin).query(api.admin.listCreators, {}),
       ).rejects.toMatchObject({ data: { code: "forbidden" } });
+    });
+  });
+
+  it("adjusts a creator balance idempotently and audits both directions", async () => {
+    const t = makeTest();
+    const { creatorId } = await makeCreatorWithUser(t, { username: "ada" });
+    const adminId = await makeUser(t, "admin@test.com", "Admin", {
+      emailVerified: true,
+    });
+
+    await withEnv({ ADMIN_EMAILS: "admin@test.com" }, async () => {
+      const credit = await forUser(t, adminId).mutation(
+        api.admin.adjustCreatorBalance,
+        {
+          creatorId,
+          amount: 10_000,
+          reason: "Goodwill credit",
+          reference: "ticket-123",
+          idempotencyKey: "adjustment-key-credit-1",
+        },
+      );
+      expect(credit).toMatchObject({ duplicate: false, balanceAvailable: 10_000 });
+
+      const retry = await forUser(t, adminId).mutation(
+        api.admin.adjustCreatorBalance,
+        {
+          creatorId,
+          amount: 10_000,
+          reason: "Goodwill credit",
+          reference: "ticket-123",
+          idempotencyKey: "adjustment-key-credit-1",
+        },
+      );
+      expect(retry).toMatchObject({ duplicate: true, balanceAvailable: 10_000 });
+      expect(retry.ledgerEntryId).toBe(credit.ledgerEntryId);
+
+      const debit = await forUser(t, adminId).mutation(
+        api.admin.adjustCreatorBalance,
+        {
+          creatorId,
+          amount: -3_000,
+          reason: "Recover chargeback shortfall",
+          reference: "dispute-456",
+          idempotencyKey: "adjustment-key-debit-1",
+        },
+      );
+      expect(debit).toMatchObject({ duplicate: false, balanceAvailable: 7_000 });
+      expect((await getCreator(t, creatorId)).balanceAvailable).toBe(7_000);
+
+      const adjustments = (await listLedger(t, creatorId)).filter(
+        (entry) => entry.type === "adjustment",
+      );
+      expect(adjustments).toHaveLength(2);
+      expect(adjustments.map((entry) => entry.amount).sort((a, b) => a - b)).toEqual([
+        -3_000, 10_000,
+      ]);
+
+      const audit = await forUser(t, adminId).query(api.admin.listAuditLog, {});
+      expect(
+        audit.filter((row) => row.action === "creator.balance_adjusted"),
+      ).toHaveLength(2);
     });
   });
 });

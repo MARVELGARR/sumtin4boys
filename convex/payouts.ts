@@ -6,6 +6,7 @@ import { connectEnabled, minPayoutMinor } from "./lib/config";
 import { appError } from "./lib/errors";
 import { requireCreator } from "./lib/guards";
 import { fromMinorUnits } from "./lib/money";
+import { maxPayoutNet, payoutFeeFor } from "./lib/pricing";
 
 /**
  * Payouts.
@@ -25,6 +26,8 @@ import { fromMinorUnits } from "./lib/money";
 const payoutRowValidator = v.object({
   _id: v.id("payouts"),
   amount: v.number(),
+  fee: v.optional(v.number()),
+  totalDebited: v.optional(v.number()),
   currency: v.string(),
   status: v.union(
     v.literal("requested"),
@@ -41,7 +44,12 @@ const payoutRowValidator = v.object({
 
 export const request = mutation({
   args: { amount: v.number() },
-  returns: v.object({ payoutId: v.id("payouts") }),
+  returns: v.object({
+    payoutId: v.id("payouts"),
+    amount: v.number(),
+    fee: v.number(),
+    totalDebited: v.number(),
+  }),
   handler: async (ctx, args) => {
     const { creator } = await requireCreator(ctx);
     if (connectEnabled()) {
@@ -53,7 +61,7 @@ export const request = mutation({
     if (creator.status !== "active") {
       throw appError("forbidden", "Your page is suspended, so payouts are paused.");
     }
-    const minimum = minPayoutMinor();
+    const minimum = minPayoutMinor(creator.currency);
     if (!Number.isSafeInteger(args.amount) || args.amount < minimum) {
       throw appError(
         "below_minimum_payout",
@@ -65,8 +73,18 @@ export const request = mutation({
     // A creator whose available balance went negative from a refund can only
     // recover through future settled donations or an admin adjustment.
     const withdrawable = payoutableBalance(creator);
-    if (args.amount > withdrawable) {
-      throw appError("insufficient_available", "That is more than your available balance.");
+    // The creator enters the net amount they want to receive. Bachs charges
+    // its withdrawal fee on top, so the balance must cover both.
+    const fee = payoutFeeFor(args.amount, creator.currency);
+    const totalDebited = args.amount + fee;
+    if (totalDebited > withdrawable) {
+      const maxNet = maxPayoutNet(withdrawable, creator.currency);
+      throw appError(
+        "insufficient_available",
+        maxNet >= minimum
+          ? `The ${fromMinorUnits(fee, creator.currency)} ${creator.currency} payout fee is added on top. You can request up to ${fromMinorUnits(maxNet, creator.currency)} ${creator.currency} net right now.`
+          : `The ${fromMinorUnits(fee, creator.currency)} ${creator.currency} payout fee is added on top, so your available balance is not enough for this payout.`,
+      );
     }
     const recent = await ctx.db
       .query("payouts")
@@ -84,23 +102,26 @@ export const request = mutation({
     const payoutId = await ctx.db.insert("payouts", {
       creatorId: creator._id,
       amount: args.amount,
+      fee,
+      totalDebited,
       currency: creator.currency,
       status: "requested",
       method: "manual",
       requestedAt: now,
     });
-    // Reserve the funds immediately: a settled negative entry lowers
-    // balanceAvailable in the same transaction as the payout row.
+    // Reserve the net amount plus the provider fee immediately. A failed
+    // payout returns the full totalDebited, not just the net amount.
     await applyLedgerEntry(ctx, {
       creatorId: creator._id,
       type: "payout",
-      amount: -args.amount,
+      amount: -totalDebited,
       currency: creator.currency,
       payoutId,
       settlementStatus: "settled",
-      note: "Payout requested",
+      note: fee > 0 ? `Payout requested (fee ${fee} included)` : "Payout requested",
+      reference: `payout_request_${payoutId}`,
     });
-    return { payoutId };
+    return { payoutId, amount: args.amount, fee, totalDebited };
   },
 });
 
@@ -119,6 +140,8 @@ export const listMine = query({
       page: page.page.map((payout) => ({
         _id: payout._id,
         amount: payout.amount,
+        fee: payout.fee,
+        totalDebited: payout.totalDebited,
         currency: payout.currency,
         status: payout.status,
         method: payout.method,
@@ -135,9 +158,22 @@ export const getBalances = query({
   args: {},
   returns: v.object({
     currency: v.string(),
+    /** Net pending ledger entries (can be negative). */
     pending: v.number(),
+    /** Settled ledger balance before pending deductions. */
     available: v.number(),
+    /** What can actually be requested after pending deductions. */
+    withdrawable: v.number(),
+    /** Net amount of open payout requests (what the creator will receive). */
+    processing: v.number(),
+    /** Provider fees attached to open payouts. */
+    processingFees: v.number(),
+    /** Total reserved by open payouts (net + fees). */
+    processingTotal: v.number(),
+    /** Lifetime net received from paid payouts. */
     paidOut: v.number(),
+    /** Lifetime donation earnings after platform fees, before payout fees. */
+    netEarned: v.number(),
     minimum: v.number(),
     connectMode: v.boolean(),
     hasOpenPayout: v.boolean(),
@@ -148,17 +184,38 @@ export const getBalances = query({
       .query("payouts")
       .withIndex("by_creator", (q) => q.eq("creatorId", creator._id))
       .order("desc")
-      .take(10);
+      .take(100);
+    const open = recent.filter(
+      (payout) => payout.status === "requested" || payout.status === "processing",
+    );
+    const processing = open.reduce((sum, payout) => sum + payout.amount, 0);
+    const processingFees = open.reduce(
+      (sum, payout) => sum + (payout.fee ?? 0),
+      0,
+    );
+    const processingTotal = open.reduce(
+      (sum, payout) => sum + (payout.totalDebited ?? payout.amount),
+      0,
+    );
+    const netEarned =
+      creator.balancePending +
+      creator.balanceAvailable +
+      creator.balancePaidOut +
+      processingTotal +
+      (creator.balancePayoutFeesPaid ?? 0);
     return {
       currency: creator.currency,
       pending: creator.balancePending,
       available: creator.balanceAvailable,
+      withdrawable: payoutableBalance(creator),
+      processing,
+      processingFees,
+      processingTotal,
       paidOut: creator.balancePaidOut,
-      minimum: minPayoutMinor(),
+      netEarned,
+      minimum: minPayoutMinor(creator.currency),
       connectMode: connectEnabled(),
-      hasOpenPayout: recent.some(
-        (payout) => payout.status === "requested" || payout.status === "processing",
-      ),
+      hasOpenPayout: open.length > 0,
     };
   },
 });

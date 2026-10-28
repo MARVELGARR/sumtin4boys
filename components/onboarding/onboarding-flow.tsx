@@ -55,14 +55,16 @@ import {
   DISPLAY_NAME_MAX_LENGTH,
   formatMoney,
   fromMinorUnits,
-  MAX_BREAD_PRICE_MINOR,
-  MIN_BREAD_PRICE_MINOR,
   normalizeUsername,
   parseMajorAmount,
   SUPPORTED_CURRENCIES,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
 } from "@/lib/format";
+import {
+  maxBreadPriceMinorFor,
+  minBreadPriceMinorFor,
+} from "@/convex/lib/pricing";
 import { cn } from "@/lib/utils";
 
 const USERNAME_REASON_MESSAGES: Record<string, string> = {
@@ -518,20 +520,19 @@ function ProfileStep({
     }
     setNameError(null);
 
+    const minBread = minBreadPriceMinorFor(currency);
+    const maxBread = maxBreadPriceMinorFor(currency);
     const priceMinor = parseMajorAmount(price, currency);
     if (priceMinor === null) {
       setPriceError("Enter a valid bread price, for example 1000.");
       return;
     }
-    if (
-      priceMinor < MIN_BREAD_PRICE_MINOR ||
-      priceMinor > MAX_BREAD_PRICE_MINOR
-    ) {
+    if (priceMinor < minBread || priceMinor > maxBread) {
       setPriceError(
         `Bread price must be between ${formatMoney(
-          MIN_BREAD_PRICE_MINOR,
+          minBread,
           currency,
-        )} and ${formatMoney(MAX_BREAD_PRICE_MINOR, currency)}.`,
+        )} and ${formatMoney(maxBread, currency)}.`,
       );
       return;
     }
@@ -541,10 +542,10 @@ function ProfileStep({
     let goalMinor: number | null = null;
     if (goalText.length > 0) {
       goalMinor = parseMajorAmount(goalText, currency);
-      if (goalMinor === null || goalMinor < MIN_BREAD_PRICE_MINOR) {
+      if (goalMinor === null || goalMinor < minBread) {
         setGoalError(
           `Goal must be at least ${formatMoney(
-            MIN_BREAD_PRICE_MINOR,
+            minBread,
             currency,
           )}, or leave it empty.`,
         );
@@ -669,7 +670,8 @@ function ProfileStep({
                     <FieldError>{priceError}</FieldError>
                   ) : (
                     <FieldDescription>
-                      At least {formatMoney(MIN_BREAD_PRICE_MINOR, currency)}{" "}
+                      At least{" "}
+                      {formatMoney(minBreadPriceMinorFor(currency), currency)}{" "}
                       per bread.
                     </FieldDescription>
                   )}

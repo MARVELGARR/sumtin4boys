@@ -6,10 +6,11 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { applyLedgerEntry } from "./ledger";
+import { applyLedgerEntry, applyPlatformLedgerEntry } from "./ledger";
 import { settlementHoldHours } from "./lib/config";
 import { appError } from "./lib/errors";
 import { isAdmin, requireAdmin } from "./lib/guards";
+import { rateLimiter } from "./rateLimit";
 
 /**
  * Admin tools. Access is gated by the `ADMIN_EMAILS` deployment variable
@@ -187,6 +188,8 @@ const payoutAdminRowValidator = v.object({
   creatorUsername: v.string(),
   creatorDisplayName: v.string(),
   amount: v.number(),
+  fee: v.optional(v.number()),
+  totalDebited: v.optional(v.number()),
   currency: v.string(),
   status: v.union(
     v.literal("requested"),
@@ -231,6 +234,8 @@ export const listPayouts = query({
         creatorUsername: creator?.username ?? "(deleted)",
         creatorDisplayName: creator?.displayName ?? "",
         amount: payout.amount,
+        fee: payout.fee,
+        totalDebited: payout.totalDebited,
         currency: payout.currency,
         status: payout.status,
         method: payout.method,
@@ -241,6 +246,103 @@ export const listPayouts = query({
       });
     }
     return rows;
+  },
+});
+
+/**
+ * Manual creator balance adjustment (positive credit or negative clawback).
+ *
+ * Every adjustment is a settled ledger entry, so it immediately changes the
+ * creator's withdrawable balance and remains auditable forever. The
+ * idempotency key is stored on the entry; retrying the same admin action
+ * returns the original entry instead of moving money twice.
+ */
+export const adjustCreatorBalance = mutation({
+  args: {
+    creatorId: v.id("creators"),
+    /** Signed minor units: positive credits, negative debits. */
+    amount: v.number(),
+    reason: v.string(),
+    reference: v.string(),
+    idempotencyKey: v.string(),
+  },
+  returns: v.object({
+    ledgerEntryId: v.id("ledgerEntries"),
+    duplicate: v.boolean(),
+    balanceAvailable: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const admin = await requireAdmin(ctx);
+    const limit = await rateLimiter.limit(ctx, "adminAdjustmentPerActor", {
+      key: admin._id,
+    });
+    if (!limit.ok) {
+      throw appError("rate_limited", "Too many balance adjustments. Try again later.", {
+        retryAfterMs: limit.retryAfter,
+      });
+    }
+
+    const creator = await ctx.db.get("creators", args.creatorId);
+    if (!creator) throw appError("not_found", "Creator not found.");
+    if (!Number.isSafeInteger(args.amount) || args.amount === 0) {
+      throw appError("invalid_input", "Adjustment must be a non-zero whole minor-unit amount.");
+    }
+    if (!Number.isSafeInteger(creator.balanceAvailable + args.amount)) {
+      throw appError("invalid_input", "That adjustment would overflow the balance.");
+    }
+    const reason = args.reason.trim();
+    const reference = args.reference.trim();
+    const idempotencyKey = args.idempotencyKey.trim();
+    if (reason.length < 3 || reason.length > 280) {
+      throw appError("invalid_input", "Give a reason between 3 and 280 characters.");
+    }
+    if (reference.length < 3 || reference.length > 128) {
+      throw appError("invalid_input", "Give a reference between 3 and 128 characters.");
+    }
+    if (idempotencyKey.length < 8 || idempotencyKey.length > 128) {
+      throw appError("invalid_input", "Invalid adjustment idempotency key.");
+    }
+
+    const existing = await ctx.db
+      .query("ledgerEntries")
+      .withIndex("by_adjustmentKey", (q) =>
+        q.eq("creatorId", creator._id).eq("adjustmentKey", idempotencyKey),
+      )
+      .unique();
+    if (existing) {
+      return {
+        ledgerEntryId: existing._id,
+        duplicate: true,
+        balanceAvailable: creator.balanceAvailable,
+      };
+    }
+
+    const before = creatorAuditState(creator);
+    const ledgerEntryId = await applyLedgerEntry(ctx, {
+      creatorId: creator._id,
+      type: "adjustment",
+      amount: args.amount,
+      currency: creator.currency,
+      settlementStatus: "settled",
+      note: reason,
+      reference,
+      adjustmentKey: idempotencyKey,
+    });
+    const after = await ctx.db.get("creators", creator._id);
+    await recordAdminAudit(ctx, {
+      actorUserId: admin._id,
+      action: "creator.balance_adjusted",
+      targetType: "creator",
+      targetId: creator._id,
+      metadata: `${args.amount} ${creator.currency}; ${reason}; ref ${reference}`,
+      before,
+      after: after ? creatorAuditState(after) : undefined,
+    });
+    return {
+      ledgerEntryId,
+      duplicate: false,
+      balanceAvailable: after?.balanceAvailable ?? creator.balanceAvailable,
+    };
   },
 });
 
@@ -258,26 +360,64 @@ export const markPayoutPaid = mutation({
     if (!reference) {
       throw appError("invalid_input", "Record the transfer reference you used.");
     }
+    const creator = await ctx.db.get("creators", payout.creatorId);
+    if (!creator) {
+      throw appError("not_found", "The payout's creator no longer exists.");
+    }
+    if (creator.currency.toUpperCase() !== payout.currency.toUpperCase()) {
+      throw appError(
+        "currency_mismatch",
+        "The payout currency does not match the creator's currency.",
+      );
+    }
+    const fee = payout.fee ?? 0;
+    const amount = payout.amount;
+    const totalDebited = payout.totalDebited ?? amount + fee;
+    if (amount <= 0 || totalDebited !== amount + fee) {
+      throw appError("invalid_payout", "The payout's amounts are inconsistent.");
+    }
     await ctx.db.patch("payouts", payout._id, {
       status: "paid",
       reference,
+      fee,
+      totalDebited,
       processedAt: Date.now(),
     });
-    const creator = await ctx.db.get("creators", payout.creatorId);
-    if (creator) {
-      await ctx.db.patch("creators", creator._id, {
-        balancePaidOut: creator.balancePaidOut + payout.amount,
+    // No creator-ledger debit here: request() already reserved totalDebited.
+    // Record the creator's net received, and the pass-through fee on the
+    // platform ledger so it is never mistaken for platform revenue.
+    await ctx.db.patch("creators", creator._id, {
+      balancePaidOut: creator.balancePaidOut + amount,
+      balancePayoutFeesPaid: (creator.balancePayoutFeesPaid ?? 0) + fee,
+    });
+    if (fee > 0) {
+      await applyPlatformLedgerEntry(ctx, {
+        type: "payout_fee_collected",
+        amount: fee,
+        currency: payout.currency,
+        payoutId: payout._id,
+        note: "Withdrawal fee collected from creator",
       });
+      // Only the automatic rail pays this fee to Bachs. A manual bank
+      // transfer has its own (unknown) cost, so do not invent a provider
+      // expense for it; the collected fee offsets that cost instead.
+      if (payout.method === "bachs") {
+        await applyPlatformLedgerEntry(ctx, {
+          type: "payout_fee_expense",
+          amount: -fee,
+          currency: payout.currency,
+          payoutId: payout._id,
+          note: "Withdrawal fee passed to Bachs",
+        });
+      }
     }
-    const creatorAfter = creator
-      ? await ctx.db.get("creators", creator._id)
-      : null;
+    const creatorAfter = await ctx.db.get("creators", creator._id);
     await recordAdminAudit(ctx, {
       actorUserId: admin._id,
       action: "payout.paid",
       targetType: "payout",
       targetId: payout._id,
-      metadata: `${payout.amount} ${payout.currency}; ref ${reference}`,
+      metadata: `${amount} ${payout.currency} net; fee ${fee}; total ${totalDebited}; ref ${reference}`,
       before: {
         payoutStatus: payout.status,
         creator: creator ? creatorAuditState(creator) : null,
@@ -307,20 +447,29 @@ export const markPayoutFailed = mutation({
       throw appError("invalid_input", "Add a reason for the failure.");
     }
     const creatorBefore = await ctx.db.get("creators", payout.creatorId);
+    if (!creatorBefore) {
+      throw appError("not_found", "The payout's creator no longer exists.");
+    }
+    const fee = payout.fee ?? 0;
+    const amount = payout.amount;
+    const totalDebited = payout.totalDebited ?? amount + fee;
     await ctx.db.patch("payouts", payout._id, {
       status: "failed",
       failureReason: reason,
+      fee,
+      totalDebited,
       processedAt: Date.now(),
     });
-    // Release the reservation made at request time.
+    // Release the full reservation (net amount + provider fee).
     await applyLedgerEntry(ctx, {
       creatorId: payout.creatorId,
       type: "payout_reversal",
-      amount: payout.amount,
+      amount: totalDebited,
       currency: payout.currency,
       payoutId: payout._id,
       settlementStatus: "settled",
-      note: "Payout failed — funds released",
+      note: "Payout failed — full reservation released",
+      reference: `payout_failed_${payout._id}`,
     });
     const creatorAfter = await ctx.db.get("creators", payout.creatorId);
     await recordAdminAudit(ctx, {

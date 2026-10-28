@@ -100,36 +100,32 @@ export default function DashboardOverviewPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          label="Total raised"
+          label="Gross raised"
           value={stats ? formatMoney(stats.totals.raised, stats.currency) : null}
-          hint="All-time, before fees"
+          hint="All-time bread, before platform fees"
         />
         <StatCard
-          label="Supporters"
+          label="Net earned"
           value={
-            stats
-              ? stats.counts.truncated
-                ? "500+"
-                : stats.totals.supporters.toLocaleString()
-              : null
+            balances ? formatMoney(balances.netEarned, balances.currency) : null
           }
-          hint="People who supported you"
+          hint="After platform fees, before payout fees"
         />
         <StatCard
-          label="Available balance"
+          label="Available to withdraw"
           value={
             balances
-              ? formatMoney(balances.available, balances.currency)
+              ? formatMoney(balances.withdrawable, balances.currency)
               : null
           }
-          hint="Ready to withdraw"
+          hint="After pending deductions and open payouts"
         />
         <StatCard
-          label="Paid out"
+          label="Paid supports"
           value={
-            balances ? formatMoney(balances.paidOut, balances.currency) : null
+            stats ? stats.counts.paid.toLocaleString() : null
           }
-          hint="Sent to you so far"
+          hint="Successful breads — not unique people"
         />
       </div>
 

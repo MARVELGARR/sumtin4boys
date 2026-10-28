@@ -105,8 +105,12 @@ export function SupportersView() {
   function countLabel(filter: StatusFilter): string {
     if (filter === "all" || !stats) return FILTER_LABELS[filter];
     const count = stats.counts[filter];
+    // `paid` is the creator's exact lifetime counter; other statuses use a
+    // bounded scan and may be truncated.
     const display =
-      stats.counts.truncated && count >= 500 ? "500+" : count.toLocaleString();
+      filter !== "paid" && stats.counts.truncated && count >= 500
+        ? "500+"
+        : count.toLocaleString();
     return `${FILTER_LABELS[filter]} (${display})`;
   }
 

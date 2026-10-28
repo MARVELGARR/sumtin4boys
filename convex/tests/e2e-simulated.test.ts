@@ -17,6 +17,8 @@ const VALID = {
   supporterName: "Sam Supporter",
   supporterEmail: "sam@test.com",
   isPrivate: false,
+  tipBps: 0,
+  coverProcessingFee: true,
 };
 
 type CheckoutOverrides = Partial<typeof VALID> & {
@@ -81,6 +83,10 @@ describe("simulated end-to-end donation", () => {
     expect(donation?.amount).toBe(100_000);
     expect(donation?.platformFee).toBe(5_000);
     expect(donation?.netAmount).toBe(95_000);
+    expect(donation?.platformTip).toBe(0);
+    expect(donation?.totalCharged).toBe(100_000);
+    expect(donation?.coverProcessingFee).toBe(true);
+    expect(donation?.pricingVersion).toBeTypeOf("string");
     expect(donation?.currency).toBe("NGN");
     expect(donation?.supporterName).toBe("Sam Supporter");
     expect(donation?.supporterEmail).toBe("sam@test.com");
@@ -114,7 +120,7 @@ describe("simulated end-to-end donation", () => {
 
     const stats = await forUser(t, userId).query(api.donations.getMyStats, {});
     expect(stats.currency).toBe("NGN");
-    expect(stats.totals).toEqual({ raised: 100_000, supporters: 1 });
+    expect(stats.totals).toEqual({ raised: 100_000, paidSupports: 1 });
     expect(stats.balances).toEqual({ pending: 95_000, available: 0, paidOut: 0 });
     expect(stats.counts).toEqual({
       paid: 1,
@@ -137,6 +143,52 @@ describe("simulated end-to-end donation", () => {
     expect(publicPage.creator?.totalSupporters).toBe(1);
     expect(publicPage.recentDonations).toHaveLength(1);
     expect(publicPage.recentDonations[0].supporterName).toBe("Sam Supporter");
+  });
+
+  it("adds an optional platform tip without changing the creator's bread", async () => {
+    const t = makeTest();
+    const { userId } = await makeCreatorWithUser(t, {
+      username: "ada",
+      coffeePrice: 50_000,
+    });
+
+    const result = await t.action(api.donations.createCheckout, checkoutArgs({
+      quantity: 1,
+      tipBps: 1_000,
+      coverProcessingFee: true,
+    }));
+    expect(result.status).toBe("redirect");
+    if (result.status !== "redirect") throw new Error("expected a redirect result");
+
+    const donation = await t.run(async (ctx) =>
+      ctx.db
+        .query("donations")
+        .withIndex("by_reference", (q) => q.eq("reference", result.reference))
+        .unique(),
+    );
+    expect(donation?.amount).toBe(50_000);
+    expect(donation?.platformFee).toBe(2_500);
+    expect(donation?.platformTip).toBe(5_000);
+    expect(donation?.totalCharged).toBe(55_000);
+    expect(donation?.netAmount).toBe(47_500);
+
+    await t.mutation(api.bachs.simulated.completeSimulatedCheckout, {
+      reference: result.reference,
+      outcome: "paid",
+    });
+
+    const stats = await forUser(t, userId).query(api.donations.getMyStats, {});
+    expect(stats.totals).toEqual({ raised: 50_000, paidSupports: 1 });
+    expect(stats.balances).toEqual({
+      pending: 47_500,
+      available: 0,
+      paidOut: 0,
+    });
+
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    expect(platform.find((entry) => entry.type === "platform_tip")?.amount).toBe(5_000);
   });
 
   it("marks failed and expired simulated checkouts unresolved", async () => {
@@ -217,6 +269,8 @@ describe("simulated end-to-end donation", () => {
         supporterName: "Flood",
         supporterEmail,
         isPrivate: false,
+        tipBps: 0,
+        coverProcessingFee: true,
       });
 
     for (let index = 0; index < 5; index += 1) {

@@ -13,6 +13,8 @@ const BASE = {
   supporterName: "Sam Supporter",
   supporterEmail: "sam@test.com",
   isPrivate: false,
+  tipBps: 0,
+  coverProcessingFee: true,
 };
 
 describe("checkout attempt idempotency", () => {

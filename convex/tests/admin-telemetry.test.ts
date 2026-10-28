@@ -446,6 +446,7 @@ describe("adminTelemetry.overview", () => {
         paymentsDriver: "simulated",
         connectEnabled: false,
         turnstileConfigured: true,
+        webhookUrl: "",
       });
       expect(result.counts).toEqual({
         creatorsTotal: 3,
@@ -477,11 +478,11 @@ describe("adminTelemetry.overview", () => {
       const ngn = result.currencies.find((row) => row.currency === "NGN");
       expect(ngn).toEqual({
         currency: "NGN",
-        creatorOwned: 15_000,
+        creatorOwned: 18_000,
         creatorPending: 10_000,
         creatorAvailable: 5_000,
-        heldForSettlement: 12_000,
-        pendingClawbacks: 800,
+        heldForSettlement: 11_200,
+        pendingDeductions: 800,
         nextSettlementAt: pending3h + HOLD_MS,
         platformGrossFees: 670,
         platformFeeReversals: 100,
@@ -490,16 +491,17 @@ describe("adminTelemetry.overview", () => {
         refundedVolume: 500,
         paidOutLifetime: 3_000,
         payoutsAwaiting: 3_000,
+        payoutFeesAwaiting: 0,
       });
 
       const usd = result.currencies.find((row) => row.currency === "USD");
       expect(usd).toEqual({
         currency: "USD",
-        creatorOwned: 5_000,
+        creatorOwned: 5_500,
         creatorPending: -2_000,
         creatorAvailable: 7_000,
-        heldForSettlement: 6_000,
-        pendingClawbacks: 750,
+        heldForSettlement: 5_250,
+        pendingDeductions: 750,
         nextSettlementAt: pending5h + HOLD_MS,
         platformGrossFees: 300,
         platformFeeReversals: 50,
@@ -508,10 +510,68 @@ describe("adminTelemetry.overview", () => {
         refundedVolume: 1_000,
         paidOutLifetime: 1_000,
         payoutsAwaiting: 500,
+        payoutFeesAwaiting: 0,
       });
 
       // Never combine currencies into one grand total.
       expect(result.currencies).toHaveLength(2);
+    });
+  });
+
+  it("keeps creator-owned total stable when a payout is requested", async () => {
+    const t = makeTest();
+    const adminId = await makeAdmin(t);
+    const userId = await makeUser(t, "payout@test.com", "Payout Creator");
+    await makeCreator(t, userId, {
+      username: "payout",
+      currency: "NGN",
+      balancePending: 0,
+      balanceAvailable: 200_000,
+    });
+
+    await withEnv(ENV, async () => {
+      const before = await forUser(t, adminId).query(
+        api.adminTelemetry.overview,
+        {},
+      );
+      const beforeNgn = before.currencies.find(
+        (row) => row.currency === "NGN",
+      );
+      expect(beforeNgn).toMatchObject({
+        creatorOwned: 200_000,
+        creatorAvailable: 200_000,
+        payoutsAwaiting: 0,
+      });
+      if (!beforeNgn) throw new Error("NGN bucket missing");
+      expect(beforeNgn.creatorOwned).toBe(
+        beforeNgn.heldForSettlement +
+          beforeNgn.creatorAvailable +
+          beforeNgn.payoutsAwaiting +
+          beforeNgn.payoutFeesAwaiting,
+      );
+
+      await forUser(t, userId).mutation(api.payouts.request, {
+        amount: 100_000,
+      });
+
+      const after = await forUser(t, adminId).query(
+        api.adminTelemetry.overview,
+        {},
+      );
+      const afterNgn = after.currencies.find((row) => row.currency === "NGN");
+      expect(afterNgn).toMatchObject({
+        creatorOwned: 200_000,
+        creatorAvailable: 95_000,
+        payoutsAwaiting: 100_000,
+        payoutFeesAwaiting: 5_000,
+      });
+      if (!afterNgn) throw new Error("NGN bucket missing");
+      expect(afterNgn.creatorOwned).toBe(
+        afterNgn.heldForSettlement +
+          afterNgn.creatorAvailable +
+          afterNgn.payoutsAwaiting +
+          afterNgn.payoutFeesAwaiting,
+      );
     });
   });
 });
@@ -744,6 +804,7 @@ describe("adminTelemetry.creatorDetail", () => {
         onboardingStatus: "enabled",
         createdAt: expect.any(Number),
         payoutsAwaiting: 1_000,
+        payoutFeesAwaiting: 0,
         payoutsSampled: false,
       });
 

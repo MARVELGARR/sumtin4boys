@@ -10,7 +10,11 @@
  */
 
 import { env } from "../_generated/server";
-import { MIN_PAYOUT_MINOR_DEFAULT } from "./validation";
+import {
+  minPayoutMinorFor,
+  platformFeeFor as computePlatformFee,
+  pricingPolicy,
+} from "./pricing";
 
 export type PaymentsDriver = "bachs" | "simulated";
 
@@ -95,16 +99,24 @@ export function connectEnabled(): boolean {
   return env.CONNECT_ENABLED === "true";
 }
 
-/** Platform fee in basis points (500 = 5%). Clamped to a sane range. */
-export function platformFeeBps(): number {
+/**
+ * Platform fee in basis points for a currency. The legacy `PLATFORM_FEE_BPS`
+ * env var is intentionally ignored for NGN/USD: pricing is currency-specific
+ * now (5% NGN, 10% USD). Other currencies still use the configured/default
+ * rate so existing creators are not silently repriced.
+ */
+export function platformFeeBps(currency = "NGN"): number {
+  if (currency.toUpperCase() === "NGN" || currency.toUpperCase() === "USD") {
+    return pricingPolicy(currency).platformFeeBps;
+  }
   const parsed = Number(env.PLATFORM_FEE_BPS ?? "500");
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5000) return 500;
   return Math.round(parsed);
 }
 
-/** Platform fee for an amount, in minor units (rounded to nearest minor unit). */
-export function platformFeeFor(amountMinor: number): number {
-  return Math.round((amountMinor * platformFeeBps()) / 10_000);
+/** Platform fee for an amount, in minor units, using the currency policy. */
+export function platformFeeFor(amountMinor: number, currency = "NGN"): number {
+  return computePlatformFee(amountMinor, currency);
 }
 
 /** Hours a donation stays pending before it becomes payout-available. */
@@ -114,11 +126,9 @@ export function settlementHoldHours(): number {
   return parsed;
 }
 
-/** Minimum payout in minor units. */
-export function minPayoutMinor(): number {
-  const parsed = Number(env.MIN_PAYOUT_MINOR ?? "");
-  if (Number.isSafeInteger(parsed) && parsed > 0) return parsed;
-  return MIN_PAYOUT_MINOR_DEFAULT;
+/** Minimum payout in minor units, per currency. */
+export function minPayoutMinor(currency = "NGN"): number {
+  return minPayoutMinorFor(currency);
 }
 
 /** Public app origin, without a trailing slash. */
@@ -172,9 +182,12 @@ export function isPubliclyReachableUrl(value: string): boolean {
   return true;
 }
 
-/** Lowercased admin email allow-list. */
+/**
+ * Lowercased admin email allow-list. No hard-coded fallback: if the
+ * deployment forgets ADMIN_EMAILS, nobody is an admin (fail closed).
+ */
 export function adminEmails(): string[] {
-  return (env.ADMIN_EMAILS ?? "marvellousobatale@gmail.com")
+  return (env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
@@ -197,7 +210,8 @@ export function convexSiteUrl(): string {
   return env.CONVEX_SITE_URL;
 }
 
-/** Full public webhook URL for this deployment. */
+/** Full public webhook URL for this deployment (empty when unknown). */
 export function webhookUrl(): string {
-  return `${env.CONVEX_SITE_URL}/bachs/webhook`;
+  const site = env.CONVEX_SITE_URL?.replace(/\/+$/, "");
+  return site ? `${site}/bachs/webhook` : "";
 }

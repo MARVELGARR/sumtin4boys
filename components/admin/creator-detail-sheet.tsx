@@ -30,12 +30,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -60,6 +76,7 @@ import {
   formatDateTime,
   formatMoney,
   formatRelativeTime,
+  parseMajorAmount,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -135,6 +152,13 @@ const PAYOUT_METHOD_LABELS: Record<PayoutRow["method"], string> = {
   bachs: "Bachs",
 };
 
+/** Idempotency key that survives retries but changes after a success. */
+function newAdjustmentKey(): string {
+  return `adj_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 12)}`;
+}
+
 export function CreatorDetailSheet({
   creatorId,
   open,
@@ -170,8 +194,19 @@ function CreatorDetailContent({
   );
   const setCreatorStatus = useMutation(api.admin.setCreatorStatus);
   const recompute = useMutation(api.admin.recomputeCreatorBalances);
+  const adjust = useMutation(api.admin.adjustCreatorBalance);
   const [busy, setBusy] = useState<"status" | "recompute" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustBusy, setAdjustBusy] = useState(false);
+  const [adjustDirection, setAdjustDirection] = useState<"credit" | "debit">(
+    "credit",
+  );
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+  const [adjustReference, setAdjustReference] = useState("");
+  const [adjustKey, setAdjustKey] = useState(newAdjustmentKey);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   if (!creatorId) {
     return (
@@ -221,6 +256,11 @@ function CreatorDetailContent({
     detail;
   const onboarding = ONBOARDING_STYLE[creator.onboardingStatus];
   const isActive = creator.status === "active";
+  const totalOwed =
+    creator.balancePending +
+    creator.balanceAvailable +
+    creator.payoutsAwaiting +
+    creator.payoutFeesAwaiting;
 
   async function handleSetStatus(status: "active" | "suspended") {
     if (!creatorId) return;
@@ -260,6 +300,56 @@ function CreatorDetailContent({
       toast.error(appErrorMessage(error));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function handleAdjust() {
+    if (!creatorId) return;
+    const parsed = parseMajorAmount(adjustAmount, creator.currency);
+    if (parsed === null || parsed <= 0) {
+      setAdjustError("Enter a valid positive amount.");
+      return;
+    }
+    if (adjustReason.trim().length < 3) {
+      setAdjustError("Give a reason of at least 3 characters.");
+      return;
+    }
+    if (adjustReference.trim().length < 3) {
+      setAdjustError("Give a reference of at least 3 characters.");
+      return;
+    }
+    const signed = adjustDirection === "credit" ? parsed : -parsed;
+    setAdjustError(null);
+    setAdjustBusy(true);
+    try {
+      const result = await adjust({
+        creatorId,
+        amount: signed,
+        reason: adjustReason.trim(),
+        reference: adjustReference.trim(),
+        idempotencyKey: adjustKey,
+      });
+      toast.success(
+        result.duplicate
+          ? "That adjustment was already applied — no money moved again."
+          : `${adjustDirection === "credit" ? "Credited" : "Debited"} ${formatMoney(
+              parsed,
+              creator.currency,
+            )} for @${creator.username}. New available balance: ${formatMoney(
+              result.balanceAvailable,
+              creator.currency,
+            )}.`,
+      );
+      setAdjustOpen(false);
+      setAdjustAmount("");
+      setAdjustReason("");
+      setAdjustReference("");
+      setAdjustDirection("credit");
+      setAdjustKey(newAdjustmentKey());
+    } catch (error) {
+      setAdjustError(appErrorMessage(error));
+    } finally {
+      setAdjustBusy(false);
     }
   }
 
@@ -334,6 +424,17 @@ function CreatorDetailContent({
 
           <section className="flex flex-col gap-2">
             <SectionHeading title="Money" />
+            <div className="rounded-xl border bg-muted/30 p-3">
+              <div className="text-xs text-muted-foreground">
+                Total owed to creator
+              </div>
+              <div className="mt-1 text-xl font-semibold tabular-nums">
+                {formatMoney(totalOwed, creator.currency)}
+              </div>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Pending + available + payouts awaiting + their fees
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border p-3">
               <SummaryStat
                 label="Pending / held"
@@ -356,9 +457,17 @@ function CreatorDetailContent({
                 value={formatMoney(creator.payoutsAwaiting, creator.currency)}
                 hint={
                   creator.payoutsSampled
-                    ? "Requested or processing; count may be partial"
-                    : "Requested or processing"
+                    ? "Net; requested or processing; count may be partial"
+                    : "Net; requested or processing"
                 }
+              />
+              <SummaryStat
+                label="Payout fees held"
+                value={formatMoney(
+                  creator.payoutFeesAwaiting,
+                  creator.currency,
+                )}
+                hint="Reserved on top of open payouts"
               />
               <SummaryStat
                 label="Paid out"
@@ -371,9 +480,9 @@ function CreatorDetailContent({
                 hint="All-time bread"
               />
               <SummaryStat
-                label="Supporters"
+                label="Paid supports"
                 value={creator.totalSupporters.toLocaleString()}
-                hint="All-time"
+                hint="All-time successful breads, not unique people"
               />
             </div>
             {held.sampled ? (
@@ -473,7 +582,7 @@ function CreatorDetailContent({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Net amount</TableHead>
                       <TableHead>Details</TableHead>
                       <TableHead className="text-right">Requested</TableHead>
                     </TableRow>
@@ -486,6 +595,20 @@ function CreatorDetailContent({
                         </TableCell>
                         <TableCell className="text-right font-medium tabular-nums">
                           {formatMoney(payout.amount, payout.currency)}
+                          {(payout.fee ?? 0) > 0 ? (
+                            <div className="text-[11px] font-normal text-muted-foreground">
+                              fee{" "}
+                              {formatMoney(
+                                payout.fee ?? 0,
+                                payout.currency,
+                              )}{" "}
+                              · reserved{" "}
+                              {formatMoney(
+                                payout.totalDebited ?? payout.amount,
+                                payout.currency,
+                              )}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="max-w-48 whitespace-normal text-muted-foreground">
                           <div className="text-xs">
@@ -591,6 +714,108 @@ function CreatorDetailContent({
             {busy === "recompute" ? <Spinner /> : <RefreshCw />}
             Recompute balances
           </Button>
+          <Dialog
+            open={adjustOpen}
+            onOpenChange={(open) => {
+              setAdjustOpen(open);
+              if (!open) setAdjustError(null);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={busy !== null}>
+                Adjust balance
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Adjust @{creator.username}&apos;s balance</DialogTitle>
+                <DialogDescription>
+                  Creates a settled ledger entry with an audit trail. Credits
+                  are immediately withdrawable; debits can leave a negative
+                  balance when recovering money owed.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <Field>
+                  <FieldLabel>Direction</FieldLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["credit", "debit"] as const).map((direction) => (
+                      <button
+                        key={direction}
+                        type="button"
+                        aria-pressed={adjustDirection === direction}
+                        disabled={adjustBusy}
+                        onClick={() => setAdjustDirection(direction)}
+                        className={cn(
+                          "touch-manipulation rounded-xl border-2 px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
+                          adjustDirection === direction
+                            ? "border-primary bg-[var(--toy-ochre)]/40"
+                            : "border-border bg-background hover:bg-muted/60",
+                        )}
+                      >
+                        {direction === "credit" ? "Credit" : "Debit"}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="adjust-amount">
+                    Amount ({creator.currency})
+                  </FieldLabel>
+                  <Input
+                    id="adjust-amount"
+                    inputMode="decimal"
+                    value={adjustAmount}
+                    onChange={(event) => setAdjustAmount(event.target.value)}
+                    placeholder="e.g. 5000"
+                    disabled={adjustBusy}
+                  />
+                  <FieldDescription>
+                    Enter a positive amount; the direction above sets the sign.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="adjust-reason">Reason</FieldLabel>
+                  <Input
+                    id="adjust-reason"
+                    value={adjustReason}
+                    onChange={(event) => setAdjustReason(event.target.value)}
+                    placeholder="e.g. Recover chargeback shortfall"
+                    maxLength={280}
+                    disabled={adjustBusy}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="adjust-reference">Reference</FieldLabel>
+                  <Input
+                    id="adjust-reference"
+                    value={adjustReference}
+                    onChange={(event) => setAdjustReference(event.target.value)}
+                    placeholder="Ticket, bank ref, or provider id"
+                    maxLength={128}
+                    disabled={adjustBusy}
+                  />
+                </Field>
+                {adjustError ? <FieldError>{adjustError}</FieldError> : null}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  disabled={adjustBusy}
+                  onClick={() => setAdjustOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={adjustBusy}
+                  onClick={() => void handleAdjust()}
+                >
+                  {adjustBusy ? <Spinner /> : null}
+                  Apply adjustment
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
             <AlertDialogTrigger asChild>
               <Button

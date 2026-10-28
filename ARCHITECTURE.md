@@ -186,6 +186,11 @@ export default defineSchema({
     currency: v.string(),
     platformFee: v.number(),            // minor units
     netAmount: v.number(),
+    platformTip: v.optional(v.number()), // optional 0–10% platform tip
+    totalCharged: v.optional(v.number()),// bread + tip; provider may add processing fee
+    coverProcessingFee: v.optional(v.boolean()),
+    pricingVersion: v.optional(v.string()),
+    processingFee: v.optional(v.number()),
     reference: v.string(),              // unique forever; never reused (even after expiry)
     attemptId: v.optional(v.string()),  // browser UUID; dedupes double-click/retry
     checkoutId: v.optional(v.string()),
@@ -211,23 +216,61 @@ export default defineSchema({
     creatorId: v.id("creators"),
     type: v.union(
       v.literal("donation"), v.literal("fee"), v.literal("refund"),
-      v.literal("payout"), v.literal("adjustment"),
+      v.literal("fee_reversal"), v.literal("payout"),
+      v.literal("payout_reversal"), v.literal("adjustment"),
     ),
     amount: v.number(),                 // signed, minor units
     currency: v.string(),
     donationId: v.optional(v.id("donations")),
     payoutId: v.optional(v.id("payouts")),
     settlementStatus: v.optional(v.union(v.literal("pending"), v.literal("settled"))),
+    adjustmentKey: v.optional(v.string()),
+    reference: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_creator", ["creatorId", "createdAt"]),
+  })
+    .index("by_creator", ["creatorId", "createdAt"])
+    .index("by_adjustmentKey", ["creatorId", "adjustmentKey"]),
+
+  platformLedgerEntries: defineTable({  // platform-only revenue/cost, never creator balances
+    type: v.union(
+      v.literal("platform_fee"), v.literal("platform_fee_refund"),
+      v.literal("platform_tip"), v.literal("platform_tip_refund"),
+      v.literal("processing_fee_expense"),
+      v.literal("payout_fee_collected"), v.literal("payout_fee_expense"),
+    ),
+    amount: v.number(),
+    currency: v.string(),
+    donationId: v.optional(v.id("donations")),
+    payoutId: v.optional(v.id("payouts")),
+    createdAt: v.number(),
+  }),
+
+  providerRefunds: defineTable({        // durable refunds, including pre-completion
+    eventId: v.string(),
+    chargeId: v.string(),
+    checkoutId: v.string(),
+    refundId: v.string(),
+    amountRaw: v.optional(v.string()),
+    amount: v.optional(v.number()),
+    status: v.union(v.literal("pending_match"), v.literal("applied"),
+                    v.literal("partial"), v.literal("unmatched")),
+    donationId: v.optional(v.id("donations")),
+    creatorId: v.optional(v.id("creators")),
+    eventCreatedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_chargeId", ["chargeId", "status"])
+    .index("by_checkoutId", ["checkoutId", "status"]),
 
   payouts: defineTable({
     creatorId: v.id("creators"),
-    amount: v.number(),
+    amount: v.number(),                 // net the creator receives
+    fee: v.optional(v.number()),        // provider fee added on top and reserved
+    totalDebited: v.optional(v.number()),
     currency: v.string(),
     status: v.union(v.literal("requested"), v.literal("processing"),
                     v.literal("paid"), v.literal("failed")),
-    idempotencyKey: v.string(),
+    idempotencyKey: v.optional(v.string()),
     bachsPayoutId: v.optional(v.string()),
     requestedAt: v.number(),
   }).index("by_creator", ["creatorId", "requestedAt"]),
@@ -235,7 +278,13 @@ export default defineSchema({
   webhookEvents: defineTable({
     eventId: v.string(),
     type: v.string(),
-    processedAt: v.number(),
+    source: v.optional(v.string()),
+    outcome: v.optional(v.string()),
+    checkoutId: v.optional(v.string()),
+    donationId: v.optional(v.id("donations")),
+    creatorId: v.optional(v.id("creators")),
+    eventCreatedAt: v.optional(v.number()),
+    receivedAt: v.number(),
   }).index("by_eventId", ["eventId"]),
 
   apiOperations: defineTable({          // idempotency + uncertain-write recovery
@@ -264,7 +313,7 @@ export default defineSchema({
 1. The browser generates one `attemptId` UUID when the support form opens and reuses it for every retry.
 2. Rate limit by email/creator (Convex rate-limiter component). Duplicate attempts return before consuming a bucket.
 3. Validate args (quantity bounds, email format, message length, creator active and onboarded).
-4. **Recompute amount server-side** from `creator.coffeePrice * quantity` (the field is exposed publicly as `breadPrice`). Ignore any client amount. Compute `platformFee` from server config.
+4. **Recompute amount server-side** from `creator.coffeePrice * quantity` (the field is exposed publicly as `breadPrice`). Ignore any client amount. Compute `platformFee` and the optional tip with `convex/lib/pricing.ts`.
 5. `internalMutation`: look up `donations.by_attemptId`. If found, verify the request fields match and return the existing donation + `checkoutUrl`.
 6. Otherwise insert donation (`pending`) with `attemptId`, a fresh `reference`, and an `apiOperations` row (`started`).
 7. Call Bachs to create the hosted checkout session (`product_cart`, `reference`, destination seller account, fee, redirect URLs). Send the persisted `Idempotency-Key` derived from `reference`.
@@ -284,6 +333,8 @@ export default defineSchema({
 
 - Fulfil once on **`checkout.completed` or `collection.succeeded`, whichever arrives first**, after retrieving the checkout and confirming: status is `completed`, **amount and currency match the donation**. If not yet completed → throw (5xx) so it is retried.
 - In one transaction: insert `eventId` into `webhookEvents` (unique check), compare event time with `lastEventAt` (ignore older), update donation, append ledger entries, schedule emails.
+- **Refunds are durable.** Match by charge id or checkout id. Before completion, queue in `providerRefunds` (`pending_match`) and apply all queued refunds atomically during completion. Completion without a charge id fails closed (`missing_charge_id`) rather than crediting money that cannot be reversed.
+- Full refunds write settled creator `refund` + `fee_reversal` entries and reverse platform fee/tip ledger entries. Partial refunds are recorded for manual review and do not move balances.
 - `collection.failed` is **not final**. `checkout.expired` is **not final** (a payment can still complete the checkout afterward). Both map to `unresolved`, and a later success moves it to `paid`.
 - A virtual-account deposit with no order reference does **not** pay a donation automatically; flag it for manual review.
 - Failed processing must leave the event eligible for redelivery (do not record the event ID until the transaction commits).
@@ -304,9 +355,10 @@ pending ──paid event──────────────► paid ─�
 
 ### 7.6 Payouts
 
-- Payment, seller balance credit, and payout delivery are separate states. Payout uses the **seller's balance** and its **usable destination**.
+- Payment, seller balance credit, and payout delivery are separate states. Payout uses the **creator's balance** and its **usable destination**.
+- The creator requests the **net amount they receive**. The provider fee is added on top and both are reserved atomically (`payout` ledger entry = `-(amount + fee)`). A failed payout releases the full reservation.
+- Show creators: pending (net), available, withdrawable, processing (net + fee), paid out (net), and net earned. Platform fees reduce earnings; payout fees do not.
 - Persist an `Idempotency-Key` per payout request. Handle payout failure and retry paths explicitly.
-- Show creators three numbers: **pending**, **available**, **paid out**.
 
 ---
 

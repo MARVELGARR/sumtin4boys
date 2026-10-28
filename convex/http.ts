@@ -75,6 +75,46 @@ function extractAccountId(data: Record<string, unknown>): string | undefined {
 }
 
 /**
+ * Refund events are not uniformly shaped across Bachs versions. Pull the
+ * charge/session ids from every documented nesting so a refund is never
+ * discarded merely because the id lives one level deeper.
+ */
+function extractRefundDetails(data: Record<string, unknown>): {
+  chargeId?: string;
+  checkoutId?: string;
+  refundId?: string;
+  refundedAmount?: string;
+} {
+  const refund = asRecord(data.refund);
+  const charge = asRecord(data.charge);
+  const payment = asRecord(data.payment);
+  return {
+    chargeId:
+      stringOrUndefined(data.charge_id) ??
+      stringOrUndefined(data.payment_id) ??
+      stringOrUndefined(refund.charge_id) ??
+      stringOrUndefined(refund.payment_id) ??
+      stringOrUndefined(charge.id) ??
+      stringOrUndefined(payment.id),
+    checkoutId:
+      stringOrUndefined(data.checkout_id) ??
+      stringOrUndefined(data.checkout_session_id) ??
+      stringOrUndefined(refund.checkout_id) ??
+      stringOrUndefined(charge.checkout_id) ??
+      stringOrUndefined(payment.checkout_id),
+    refundId:
+      stringOrUndefined(data.refund_id) ??
+      stringOrUndefined(refund.id) ??
+      stringOrUndefined(data.id),
+    refundedAmount:
+      stringOrUndefined(data.refunded_amount) ??
+      stringOrUndefined(refund.refunded_amount) ??
+      stringOrUndefined(refund.amount) ??
+      stringOrUndefined(data.amount),
+  };
+}
+
+/**
  * Bachs checkout redirects.
  *
  * Bachs requires public success/cancel URLs, so checkout sessions point at
@@ -161,10 +201,7 @@ http.route({
           eventType,
           eventCreatedAt: createdAtMs,
           source: "webhook" as const,
-          refund: {
-            chargeId: stringOrUndefined(data.charge_id),
-            refundedAmount: stringOrUndefined(data.refunded_amount),
-          },
+          refund: extractRefundDetails(data),
         },
       );
       return json(200, { ok: true, outcome: result.outcome });

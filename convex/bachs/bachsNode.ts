@@ -188,12 +188,29 @@ async function bachsFetch<T>(
 /** Normalize a live checkout session into the app's shape. */
 function normalizeCheckout(session: CheckoutSessionResponse): CheckoutState {
   const charge = session.charge ?? null;
+  const chargeRaw = charge as unknown as Record<string, unknown> | null;
   const chargeId =
     charge && typeof charge.payment_id === "string" && charge.payment_id
       ? charge.payment_id
       : charge && typeof charge.id === "string"
         ? charge.id
         : undefined;
+
+  const fees = chargeRaw?.fees as { amount?: unknown } | undefined;
+  const processingFee =
+    typeof fees?.amount === "string"
+      ? fees.amount
+      : typeof chargeRaw?.fee === "string"
+        ? chargeRaw.fee
+        : undefined;
+  const feePaidBy = chargeRaw?.fee_paid_by;
+  const feeBearer =
+    feePaidBy === "merchant"
+      ? ("merchant" as const)
+      : feePaidBy === "customer"
+        ? ("customer" as const)
+        : undefined;
+
   return {
     checkoutId: session.checkout_id,
     status: typeof session.status === "string" ? session.status : "unknown",
@@ -207,6 +224,8 @@ function normalizeCheckout(session: CheckoutSessionResponse): CheckoutState {
     currency: typeof session.currency === "string" ? session.currency : charge?.currency,
     reference: typeof session.reference === "string" ? session.reference : undefined,
     chargeId,
+    processingFee,
+    feeBearer,
   };
 }
 
@@ -297,82 +316,58 @@ export const createCheckoutSession = internalAction({
       creator_username: payload.creatorUsername,
       reference: payload.reference,
     };
+    const chargeAmount = payload.chargeAmount ?? payload.amount;
 
-    // --- Connect mode: destination charge via documented raw API -----------
-    // The SDK does not model `transfer_data` / `platform_fee`, so this path
-    // uses the raw endpoint exactly as documented at
+    // Use the documented raw endpoint for both platform and Connect mode:
+    // the SDK's create type does not expose `customer_bears_fee`, and the
+    // Connect shape needs `transfer_data` / `platform_fee`.
+    // https://docs.bachs.io/connect/processing-fees
     // https://docs.bachs.io/connect/split-payments/destination
-    if (payload.connectDestination) {
-      const result = await bachsFetch<{ checkout_id?: string; checkout_url?: string }>(
-        "/v1/checkout-sessions",
-        {
-          method: "POST",
-          idempotencyKey: payload.idempotencyKey,
-          body: {
-            pricing: { currency: payload.currency, amount: payload.amount },
-            customer: { email: payload.supporterEmail, name: payload.supporterName },
-            success_url: payload.successUrl,
-            cancel_url: payload.cancelUrl,
-            reference: payload.reference,
-            metadata,
-            transfer_data: { destination: payload.connectDestination },
-            platform_fee: payload.platformFee,
-          },
-        },
-      );
-      if (!result.ok) {
-        return {
-          ok: false as const,
-          code: result.code,
-          message: result.message,
-          outcomeUnknown: result.outcomeUnknown,
-        };
-      }
-      const checkoutId = result.data.checkout_id;
-      const url = result.data.checkout_url;
-      if (!checkoutId || !url) {
-        // A 2xx without ids should not happen; treat as uncertain, reconcile.
-        return {
-          ok: false as const,
-          code: "bad_response",
-          message: "Bachs returned a checkout without an id or url.",
-          outcomeUnknown: true,
-        };
-      }
-      return { ok: true as const, checkoutId, url };
-    }
+    const result = await bachsFetch<{
+      checkout_id?: string;
+      checkout_url?: string;
+    }>("/v1/checkout-sessions", {
+      method: "POST",
+      idempotencyKey: payload.idempotencyKey,
+      body: {
+        pricing: { currency: payload.currency, amount: chargeAmount },
+        customer: { email: payload.supporterEmail, name: payload.supporterName },
+        success_url: payload.successUrl,
+        cancel_url: payload.cancelUrl,
+        reference: payload.reference,
+        metadata,
+        // Default-on for new checkouts. The provider adds its actual fee on
+        // top; the app never guesses that amount.
+        customer_bears_fee: payload.coverProcessingFee === true,
+        ...(payload.connectDestination
+          ? {
+              transfer_data: { destination: payload.connectDestination },
+              platform_fee: payload.platformFee,
+            }
+          : {}),
+      },
+    });
 
-    // --- Platform mode: plain checkout via the official SDK ----------------
-    const client = bachsClient();
-    if (!client) {
+    if (!result.ok) {
       return {
         ok: false as const,
-        code: "missing_api_key",
-        message: "BACHS_API_KEY is not set for this deployment.",
-        outcomeUnknown: false,
+        code: result.code,
+        message: result.message,
+        outcomeUnknown: result.outcomeUnknown,
       };
     }
-    try {
-      const session = await client.checkoutSessions.create(
-        {
-          pricing: { currency: payload.currency, amount: payload.amount },
-          customer: { email: payload.supporterEmail, name: payload.supporterName },
-          success_url: payload.successUrl,
-          cancel_url: payload.cancelUrl,
-          reference: payload.reference,
-          metadata,
-        },
-        { idempotencyKey: payload.idempotencyKey },
-      );
+    const checkoutId = result.data.checkout_id;
+    const url = result.data.checkout_url;
+    if (!checkoutId || !url) {
+      // A 2xx without ids should not happen; treat as uncertain, reconcile.
       return {
-        ok: true as const,
-        checkoutId: session.checkout_id,
-        url: session.checkout_url,
+        ok: false as const,
+        code: "bad_response",
+        message: "Bachs returned a checkout without an id or url.",
+        outcomeUnknown: true,
       };
-    } catch (error) {
-      const failure = describeBachsError(error);
-      return { ok: false as const, ...failure };
     }
+    return { ok: true as const, checkoutId, url };
   },
 });
 

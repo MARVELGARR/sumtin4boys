@@ -66,7 +66,10 @@ export const completeSimulatedCheckout = mutation({
           args.outcome === "paid" ? "completed" : args.outcome === "expire" ? "expired" : "open",
         paymentStatus:
           args.outcome === "paid" ? "paid" : args.outcome === "failed" ? "failed" : undefined,
-        amount: fromMinorUnits(donation.amount, donation.currency),
+        amount: fromMinorUnits(
+          donation.totalCharged ?? donation.amount,
+          donation.currency,
+        ),
         currency: donation.currency,
         reference: donation.reference,
         chargeId: args.outcome === "paid" ? `sim_ch_${donation.reference}` : undefined,

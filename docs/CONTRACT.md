@@ -55,6 +55,18 @@ UI obligations:
 | `connectEnabled: false` | Payouts page uses the **request → admin fulfils** flow (`api.payouts.request`). |
 | `connectEnabled: true` | Payouts page hides the request form, shows **Connect onboarding** (`api.sellers.startOnboarding`) + balances are informational. |
 
+Pricing is computed by the shared pure module `convex/lib/pricing.ts`:
+
+- Platform fee: NGN 5% with a ₦20 minimum; USD 10% with a $1 minimum;
+  other currencies 5%. The fee is creator-side and is stored as `platformFee`.
+- Optional platform tip: 0–10% of the bread subtotal, default **off**, stored as
+  `platformTip`; it is platform revenue and never changes the creator's bread.
+- Processing fee: supporters see a default-on **Cover the processing fee**
+  checkbox. The app passes `customer_bears_fee` to Bachs and never guesses the
+  provider fee; when the live checkout reports it, the amount is stored.
+- Total charged = bread subtotal + optional tip. Bachs may add its actual
+  processing fee on top at checkout when the supporter covers it.
+
 ---
 
 ## 3. Frozen public API surface
@@ -118,7 +130,8 @@ MyCreator = {
 
 `{ displayName?: string, bio?: string | null, breadPrice?: number, currency?: string, goalAmount?: number | null }` → `null`.
 Auth + creator required. Only provided fields change; explicit `null` clears bio/goalAmount.
-Bread price must be within `MIN_BREAD_PRICE_MINOR .. MAX_BREAD_PRICE_MINOR` (see §4). The persisted schema field is still named `coffeePrice` for migration compatibility; public functions expose `breadPrice`.
+Bread price must be within the per-currency bounds from `convex/lib/pricing.ts`
+(NGN ₦100–₦1,000,000; USD $5–$1,000,000; see §4). The persisted schema field is still named `coffeePrice` for migration compatibility; public functions expose `breadPrice`.
 
 #### Avatar upload (3 steps)
 
@@ -137,6 +150,8 @@ args: {
   username: string; quantity: number;      // 1..MAX_QUANTITY (10)
   supporterName: string; supporterEmail: string;
   message?: string; isPrivate: boolean;
+  tipBps: number;                          // 0..1000 (0–10%), default 0
+  coverProcessingFee: boolean;             // default true in the UI
 }
 returns:
   | { status: "redirect"; url: string; reference: string }   // send the browser to `url`
@@ -171,7 +186,7 @@ null | {
 #### `api.donations.listMine` — query
 
 `{ paginationOpts: PaginationOptions, status?: DonationStatus }` →
-paginated rows (`_id, reference, supporterName, supporterEmail, message?, isPrivate, hidden?, quantity, amount, platformFee, netAmount, currency, status, createdAt, paidAt?`).
+paginated rows (`_id, reference, supporterName, supporterEmail, message?, isPrivate, hidden?, quantity, amount, platformFee, netAmount, platformTip?, totalCharged?, currency, status, createdAt, paidAt?`).
 Creator-only (throws `not_a_creator`). Use `usePaginatedQuery`.
 
 #### `api.donations.getMyStats` — query `{}`
@@ -181,9 +196,11 @@ Creator-only:
 ```ts
 {
   currency: string;
-  totals: { raised: number; supporters: number };          // all-time, minor units
+  totals: { raised: number; paidSupports: number };        // exact lifetime; paidSupports counts successful breads, not unique people
   balances: { pending: number; available: number; paidOut: number };
-  counts: { paid: number; pending: number; unresolved: number; refunded: number; truncated: boolean };  // truncated=true → show "500+"
+  counts: { paid: number; pending: number; unresolved: number; refunded: number; abandoned: number; truncated: boolean };
+  // truncated applies to pending/unresolved/refunded/abandoned (bounded scans).
+  // paid is exact, so never render it as "500+".
 }
 ```
 
@@ -191,16 +208,32 @@ Creator-only:
 
 #### `api.payouts.getBalances` — query `{}`
 
-Creator-only: `{ currency, pending, available, paidOut, minimum, connectMode, hasOpenPayout }` (all minor units).
+Creator-only: `{ currency, pending, available, withdrawable, processing, processingFees, processingTotal, paidOut, netEarned, minimum, connectMode, hasOpenPayout }` (all minor units).
+
+- `pending` is net pending ledger entries (can be negative).
+- `available` is the settled balance before negative pending deductions.
+- `withdrawable` is what can actually be requested (`payoutableBalance`).
+- `processing` is the net amount of open payouts; `processingFees` and
+  `processingTotal` show the fee and full reservation.
+- `paidOut` is lifetime net received; `netEarned` is lifetime donation earnings
+  after platform fees and before payout fees.
+- Minimums: NGN ₦1,000; USD $10; other currencies 100,000 minor units.
 
 #### `api.payouts.request` — mutation `{ amount: number }`
 
-Creator-only. Returns `{ payoutId }`. Errors: `connect_mode`, `forbidden` (suspended),
-`below_minimum_payout`, `insufficient_available`, `payout_pending`. One open payout at a time.
+Creator-only. `amount` is the **net amount the creator receives**. The provider
+payout fee is added on top, so `amount + fee` is reserved. Returns
+`{ payoutId, amount, fee, totalDebited }`. Errors: `connect_mode`, `forbidden`
+(suspended), `below_minimum_payout`, `insufficient_available` (fees on top),
+`payout_pending`. One open payout at a time.
+
+Payout fees: NGN ₦50 flat; USD 1% with a $1 minimum and $15 cap; other
+currencies 0.3%. A failed payout releases `totalDebited`; a paid payout records
+the net amount as paid out and the fee as a platform pass-through.
 
 #### `api.payouts.listMine` — query `{ paginationOpts }`
 
-Paginated `{ _id, amount, currency, status: "requested"|"processing"|"paid"|"failed", method: "manual"|"bachs", reference?, failureReason?, requestedAt, processedAt? }`.
+Paginated `{ _id, amount, fee?, totalDebited?, currency, status: "requested"|"processing"|"paid"|"failed", method: "manual"|"bachs", reference?, failureReason?, requestedAt, processedAt? }`.
 
 ### 3.4 `sellers` (Connect)
 
@@ -214,6 +247,25 @@ Paginated `{ _id, amount, currency, status: "requested"|"processing"|"paid"|"fai
 
 ### 3.6 `bachs.simulated` (dev only)
 
+#### Refund handling
+
+Refunds are never discarded because completion has not landed yet.
+
+- Match a refund by provider charge id first, then checkout id.
+- If the donation is not yet paid, insert a `providerRefunds` row with
+  `status: "pending_match"`. Completion applies every queued refund in the same
+  transaction, so refunded money is never briefly credited.
+- A completion with no charge id fails closed (`missing_charge_id`) and is left
+  for reconciliation; it is not credited.
+- A full refund records a settled creator `refund` + `fee_reversal` and reverses
+  the platform fee/tip. Processing fees are not reversed because the processor
+  keeps them.
+- A partial refund is recorded (`partial_refund`) but does not move creator
+  money; it stays for manual review.
+- Webhook outcomes can be `processed`, `pending_refund`, `partial_refund`,
+  `already_refunded`, `unmatched_refund`, or `missing_charge_id`.
+
+
 - `api.bachs.simulated.completeSimulatedCheckout` — mutation `{ reference: string, outcome: "paid" | "failed" | "expire" }` → `{ ok, outcome }`.
   Only callable when `PAYMENTS_DRIVER=simulated` (throws `simulated_only` otherwise).
   Only from `/simulated-checkout`. Deterministic event ids make double-clicks safe.
@@ -225,7 +277,8 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 - `api.admin.amIAdmin` — query `{}` → `boolean` (safe signed-out → false).
 - `api.admin.listCreators` — query `{}` → rows `{ _id, username, displayName, email|null, status, currency, breadPrice, totalRaised, totalSupporters, balancePending, balanceAvailable, balancePaidOut, onboardingStatus, createdAt, nextSettlementAt|null, payoutsAwaiting }`.
 - `api.admin.setCreatorStatus` — mutation `{ creatorId: Id<"creators">, status: "active" | "suspended" }`.
-- `api.admin.listPayouts` — query `{ status?: "requested"|"processing"|"paid"|"failed" }` → rows `{ _id, creatorUsername, creatorDisplayName, amount, currency, status, method, reference?, failureReason?, requestedAt, processedAt? }` (up to 100 new→old).
+- `api.admin.adjustCreatorBalance` — mutation `{ creatorId, amount: number (signed minor units), reason, reference, idempotencyKey }` → `{ ledgerEntryId, duplicate, balanceAvailable }`. Admin-only, rate-limited. Writes a settled `adjustment` ledger entry and an audit row; reusing the idempotency key returns the original entry without moving money twice. Negative adjustments may leave `balanceAvailable` below zero.
+- `api.admin.listPayouts` — query `{ status?: "requested"|"processing"|"paid"|"failed" }` → rows `{ _id, creatorUsername, creatorDisplayName, amount, fee?, totalDebited?, currency, status, method, reference?, failureReason?, requestedAt, processedAt? }` (up to 100 new→old).
 - `api.admin.markPayoutPaid` — mutation `{ payoutId: Id<"payouts">, reference: string }` (bank/transfer reference).
 - `api.admin.markPayoutFailed` — mutation `{ payoutId: Id<"payouts">, reason: string }`.
 - `api.admin.recomputeCreatorBalances` — mutation `{ creatorId: Id<"creators"> }` → `{ pending, available, entriesScanned, truncated }` (recomputes pending/available from the ledger; `paidOut` is historical and untouched).
@@ -234,9 +287,9 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 
 #### Admin telemetry (all admin-only; money is per-currency integer minor units)
 
-- `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingClawbacks`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, and `payoutsAwaiting`. Money is never summed across currencies.
+- `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingDeductions`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, `payoutsAwaiting`, and `payoutFeesAwaiting`. `heldForSettlement` is net pending (positive credits minus deductions), `pendingDeductions` is the absolute value of negative pending entries already netted out, `payoutsAwaiting` is net open withdrawals, and `creatorOwned` is pending + available + open payouts + their fees, i.e. the full amount reserved for creators. Money is never summed across currencies.
 - `api.adminTelemetry.heldFunds` — query `{ limit? }` (1..200, default 100) → `{ now, settlementHoldHours, totals, entries, sampled }`. Pending ledger entries are oldest-first with `settlesAt = createdAt + settlementHoldHours`.
-- `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary (including `payoutsAwaiting` and `payoutsSampled`), held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
+- `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary (including `payoutsAwaiting`, `payoutFeesAwaiting`, and `payoutsSampled`), held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
 
 All telemetry scans are bounded (creators 1000, ledger 5000, donations 5000, payouts 2000). `sampled` flags mean a total may be partial; the UI must label those figures as samples rather than exact lifetime totals.
 
@@ -265,7 +318,10 @@ CURRENCY_DECIMALS
 
 USERNAME_MIN_LENGTH=3, USERNAME_MAX_LENGTH=30, DISPLAY_NAME_MAX_LENGTH=60,
 BIO_MAX_LENGTH=500, SUPPORTER_NAME_MAX_LENGTH=60, MESSAGE_MAX_LENGTH=280,
-MAX_QUANTITY=10, MIN_BREAD_PRICE_MINOR=10_000 (₦100), MAX_BREAD_PRICE_MINOR=100_000_000,
+MAX_QUANTITY=10,
+minBreadPriceMinorFor(currency) // NGN 10_000 (₦100); USD 500 ($5)
+maxBreadPriceMinorFor(currency) // 100_000_000
+PLATFORM_TIP_MAX_BPS=1_000 (10%)
 SUPPORTED_CURRENCIES (includes NGN), normalizeUsername, checkUsernameFormat, isValidEmail
 
 appErrorCode(error): AppErrorCode | null
@@ -330,7 +386,8 @@ try {
 ```
 
 Use codes for branching where it matters: `rate_limited`, `connect_mode`,
-`payout_pending`, `insufficient_available`, `below_minimum_payout`, `simulated_only`.
+`payout_pending`, `insufficient_available`, `below_minimum_payout`,
+`currency_mismatch`, `invalid_payout`, `simulated_only`.
 
 ---
 

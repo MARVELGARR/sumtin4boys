@@ -122,7 +122,9 @@ export function CreatorPage({
                 <span className="tabular-nums font-semibold text-foreground">
                   {creator.totalSupporters}
                 </span>{" "}
-                {creator.totalSupporters === 1 ? "supporter" : "supporters"}
+                {creator.totalSupporters === 1
+                  ? "paid support"
+                  : "paid supports"}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <BreadBuddy className="size-4" />

@@ -15,6 +15,8 @@ const VALID = {
   supporterName: "Sam Supporter",
   supporterEmail: "sam@test.com",
   isPrivate: false,
+  tipBps: 0,
+  coverProcessingFee: true,
 };
 
 type CheckoutOverrides = Partial<typeof VALID> & {
