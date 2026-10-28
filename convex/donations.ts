@@ -1,7 +1,7 @@
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, query } from "./_generated/server";
 import {
   appUrl,
@@ -19,6 +19,7 @@ import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
   SUPPORTER_NAME_MAX_LENGTH,
+  isValidCheckoutRequestId,
   isValidEmail,
   normalizeUsername,
 } from "./lib/validation";
@@ -81,6 +82,29 @@ function asDonationId(value: string | undefined): Id<"donations"> | null {
   return value ? (value as Id<"donations">) : null;
 }
 
+type CheckoutRequestFields = {
+  quantity: number;
+  supporterName: string;
+  supporterEmail: string;
+  message: string | undefined;
+  isPrivate: boolean;
+};
+
+function sameCheckoutRequest(
+  donation: Doc<"donations">,
+  creatorId: Id<"creators">,
+  fields: CheckoutRequestFields,
+): boolean {
+  return (
+    donation.creatorId === creatorId &&
+    donation.quantity === fields.quantity &&
+    donation.supporterName === fields.supporterName &&
+    donation.supporterEmail === fields.supporterEmail &&
+    (donation.message ?? undefined) === fields.message &&
+    donation.isPrivate === fields.isPrivate
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Internal: checkout creation
 // ---------------------------------------------------------------------------
@@ -93,6 +117,8 @@ function asDonationId(value: string | undefined): Id<"donations"> | null {
  */
 export const startCheckout = internalMutation({
   args: {
+    /** Browser-generated UUID, stable across retries of this checkout form. */
+    attemptId: v.string(),
     username: v.string(),
     quantity: v.number(),
     supporterName: v.string(),
@@ -104,9 +130,20 @@ export const startCheckout = internalMutation({
     donationId: v.id("donations"),
     reference: v.string(),
     driver: v.union(v.literal("bachs"), v.literal("simulated")),
+    status: donationStatusValidator,
+    checkoutId: v.optional(v.string()),
+    checkoutUrl: v.optional(v.string()),
     payload: checkoutPayloadValidator,
   }),
   handler: async (ctx, args) => {
+    const attemptId = args.attemptId.trim().toLowerCase();
+    if (!isValidCheckoutRequestId(attemptId)) {
+      throw appError(
+        "invalid_input",
+        "This checkout request is invalid. Refresh the page and try again.",
+      );
+    }
+
     const username = normalizeUsername(args.username);
     const creator = await ctx.db
       .query("creators")
@@ -174,6 +211,45 @@ export const startCheckout = internalMutation({
       }
     }
 
+    // Double-click / flaky-network guard. The browser generates one attemptId
+    // when the form opens and reuses it for every retry. Returning the original
+    // donation (and checkout URL, once known) means a retry never creates a
+    // second donation or a second provider checkout.
+    const existing = await ctx.db
+      .query("donations")
+      .withIndex("by_attemptId", (q) => q.eq("attemptId", attemptId))
+      .unique();
+    if (existing) {
+      const requestMatches = sameCheckoutRequest(existing, creator._id, {
+        quantity,
+        supporterName,
+        supporterEmail,
+        message,
+        isPrivate: args.isPrivate,
+      });
+      if (!requestMatches) {
+        throw appError(
+          "invalid_input",
+          "This checkout was already started with different details. Refresh the page to start a new one.",
+        );
+      }
+      if (existing.status === "abandoned") {
+        throw appError(
+          "checkout_failed",
+          "That checkout attempt didn't go through. Refresh the page and try again.",
+        );
+      }
+      return {
+        donationId: existing._id,
+        reference: existing.reference,
+        driver: existing.driver,
+        status: existing.status,
+        checkoutId: existing.checkoutId,
+        checkoutUrl: existing.checkoutUrl,
+        payload: buildCheckoutPayload(creator, existing),
+      };
+    }
+
     const emailLimit = await rateLimiter.limit(ctx, "createCheckoutPerEmail", {
       key: supporterEmail,
     });
@@ -217,6 +293,7 @@ export const startCheckout = internalMutation({
     const reference = `a4b_${crypto.randomUUID().replace(/-/g, "")}`;
     const now = Date.now();
     const donationId = await ctx.db.insert("donations", {
+      attemptId,
       creatorId: creator._id,
       supporterName,
       supporterEmail,
@@ -252,23 +329,30 @@ export const startCheckout = internalMutation({
       donationId,
       reference,
       driver,
+      status: donation.status,
+      checkoutId: donation.checkoutId,
+      checkoutUrl: donation.checkoutUrl,
       payload: buildCheckoutPayload(creator, donation),
     };
   },
 });
 
-/** Record the provider's checkout id on both the donation and its operation. */
+/** Record the provider's checkout id + URL on both the donation and its operation. */
 export const attachCheckout = internalMutation({
   args: {
     donationId: v.id("donations"),
     checkoutId: v.string(),
+    checkoutUrl: v.string(),
     idempotencyKey: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const donation = await ctx.db.get("donations", args.donationId);
-    if (donation && !donation.checkoutId) {
-      await ctx.db.patch("donations", donation._id, { checkoutId: args.checkoutId });
+    if (donation) {
+      await ctx.db.patch("donations", donation._id, {
+        ...(donation.checkoutId ? {} : { checkoutId: args.checkoutId }),
+        checkoutUrl: args.checkoutUrl,
+      });
     }
     const operation = await ctx.db
       .query("apiOperations")
@@ -299,7 +383,9 @@ export const markOperationUnknown = internalMutation({
       .query("apiOperations")
       .withIndex("by_key", (q) => q.eq("key", args.idempotencyKey))
       .unique();
-    if (operation) {
+    // A concurrent retry may already have landed the checkout. Never downgrade
+    // a known success to an uncertain outcome.
+    if (operation && operation.status !== "succeeded") {
       await ctx.db.patch("apiOperations", operation._id, {
         status: "outcome_unknown",
         errorCode: args.errorCode,
@@ -323,7 +409,7 @@ export const markOperationFailed = internalMutation({
       .query("apiOperations")
       .withIndex("by_key", (q) => q.eq("key", args.idempotencyKey))
       .unique();
-    if (!operation) return null;
+    if (!operation || operation.status === "succeeded") return null;
     await ctx.db.patch("apiOperations", operation._id, {
       status: "failed",
       errorCode: args.errorCode,
@@ -333,7 +419,7 @@ export const markOperationFailed = internalMutation({
     const donationId = asDonationId(operation.refId);
     if (donationId) {
       const donation = await ctx.db.get("donations", donationId);
-      if (donation && donation.status === "pending") {
+      if (donation && donation.status === "pending" && !donation.checkoutId) {
         // A definitive provider failure means no checkout exists, so there is
         // no payment to reconcile. Terminalise it instead of filling the
         // reconcile queue with rows that can never produce a checkout.
@@ -369,6 +455,8 @@ export const markOperationSucceeded = internalMutation({
 
 export const createCheckout = action({
   args: {
+    /** Browser-generated UUID, reused for retries of the same form. */
+    attemptId: v.string(),
     username: v.string(),
     quantity: v.number(),
     supporterName: v.string(),
@@ -406,16 +494,41 @@ export const createCheckout = action({
       checkoutArgs,
     );
 
+    if (started.status === "abandoned") {
+      throw appError(
+        "checkout_failed",
+        "That checkout attempt didn't go through. Refresh the page and try again.",
+      );
+    }
+    if (started.status !== "pending") {
+      // Already paid/refunded, or an earlier session failed. Send the supporter
+      // to the reference page instead of reopening a finished checkout.
+      return { status: "unknown" as const, reference: started.reference };
+    }
+    if (started.checkoutUrl) {
+      // This is the duplicate-request path: the first request already created
+      // a checkout, so return the exact same hosted checkout URL.
+      return {
+        status: "redirect" as const,
+        url: started.checkoutUrl,
+        reference: started.reference,
+      };
+    }
+
     if (started.driver === "simulated") {
       const url = `${appUrl()}/simulated-checkout?ref=${encodeURIComponent(started.reference)}`;
       await ctx.runMutation(internal.donations.attachCheckout, {
         donationId: started.donationId,
-        checkoutId: `sim_${started.reference}`,
+        checkoutId: started.checkoutId ?? `sim_${started.reference}`,
+        checkoutUrl: url,
         idempotencyKey: started.payload.idempotencyKey,
       });
       return { status: "redirect" as const, url, reference: started.reference };
     }
 
+    // No stored URL yet (first attempt, or an action that crashed before
+    // attachCheckout). Replaying the request with the SAME server-derived
+    // Idempotency-Key returns Bachs' cached success instead of a new checkout.
     const result = await ctx.runAction(
       internal.bachs.bachsNode.createCheckoutSession,
       { payload: started.payload },
@@ -425,6 +538,7 @@ export const createCheckout = action({
       await ctx.runMutation(internal.donations.attachCheckout, {
         donationId: started.donationId,
         checkoutId: result.checkoutId,
+        checkoutUrl: result.url,
         idempotencyKey: started.payload.idempotencyKey,
       });
       return { status: "redirect" as const, url: result.url, reference: started.reference };
@@ -457,6 +571,7 @@ export const settleCheckoutRetry = internalMutation({
     operationId: v.id("apiOperations"),
     ok: v.boolean(),
     checkoutId: v.optional(v.string()),
+    checkoutUrl: v.optional(v.string()),
     errorCode: v.optional(v.string()),
     errorMessage: v.optional(v.string()),
     outcomeUnknown: v.boolean(),
@@ -470,8 +585,11 @@ export const settleCheckoutRetry = internalMutation({
       const donationId = asDonationId(operation.refId);
       if (donationId) {
         const donation = await ctx.db.get("donations", donationId);
-        if (donation && !donation.checkoutId) {
-          await ctx.db.patch("donations", donation._id, { checkoutId: args.checkoutId });
+        if (donation) {
+          await ctx.db.patch("donations", donation._id, {
+            ...(donation.checkoutId ? {} : { checkoutId: args.checkoutId }),
+            ...(args.checkoutUrl ? { checkoutUrl: args.checkoutUrl } : {}),
+          });
         }
       }
       await ctx.db.patch("apiOperations", operation._id, {

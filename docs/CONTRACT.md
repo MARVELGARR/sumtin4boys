@@ -133,6 +133,7 @@ Bread price must be within `MIN_BREAD_PRICE_MINOR .. MAX_BREAD_PRICE_MINOR` (see
 
 ```ts
 args: {
+  attemptId: string;                       // UUID created when the form opens
   username: string; quantity: number;      // 1..MAX_QUANTITY (10)
   supporterName: string; supporterEmail: string;
   message?: string; isPrivate: boolean;
@@ -141,6 +142,12 @@ returns:
   | { status: "redirect"; url: string; reference: string }   // send the browser to `url`
   | { status: "unknown"; reference: string }                 // outcome uncertain — send to /thanks?ref=reference
 ```
+
+`attemptId` is required and idempotent. A retry with the same `attemptId` and the
+same checkout fields returns the original donation and checkout URL; a retry
+with different fields is rejected with `invalid_input`. The donation stores the
+attempt (`by_attemptId` index) and the hosted `checkoutUrl`, while the Bachs
+`Idempotency-Key` remains server-derived from the donation `reference`.
 
 Public (anonymous). Errors: `creator_not_found`, `creator_suspended`, `invalid_input`,
 `rate_limited` (has `retryAfterMs`), `payments_unavailable`, `checkout_failed`.
@@ -216,7 +223,7 @@ Paginated `{ _id, amount, currency, status: "requested"|"processing"|"paid"|"fai
 All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the deployment).
 
 - `api.admin.amIAdmin` — query `{}` → `boolean` (safe signed-out → false).
-- `api.admin.listCreators` — query `{}` → rows `{ _id, username, displayName, email|null, status, currency, breadPrice, totalRaised, totalSupporters, balancePending, balanceAvailable, balancePaidOut, onboardingStatus, createdAt }`.
+- `api.admin.listCreators` — query `{}` → rows `{ _id, username, displayName, email|null, status, currency, breadPrice, totalRaised, totalSupporters, balancePending, balanceAvailable, balancePaidOut, onboardingStatus, createdAt, nextSettlementAt|null, payoutsAwaiting }`.
 - `api.admin.setCreatorStatus` — mutation `{ creatorId: Id<"creators">, status: "active" | "suspended" }`.
 - `api.admin.listPayouts` — query `{ status?: "requested"|"processing"|"paid"|"failed" }` → rows `{ _id, creatorUsername, creatorDisplayName, amount, currency, status, method, reference?, failureReason?, requestedAt, processedAt? }` (up to 100 new→old).
 - `api.admin.markPayoutPaid` — mutation `{ payoutId: Id<"payouts">, reference: string }` (bank/transfer reference).
@@ -224,6 +231,14 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 - `api.admin.recomputeCreatorBalances` — mutation `{ creatorId: Id<"creators"> }` → `{ pending, available, entriesScanned, truncated }` (recomputes pending/available from the ledger; `paidOut` is historical and untouched).
 - `api.admin.listWebhookEvents` — query `{}` → last 100 events `{ _id, eventId, type, source: "webhook"|"reconcile"|"simulated", outcome, donationId?, creatorId?, checkoutId?, eventCreatedAt, receivedAt }`.
 - `api.admin.listApiOperations` — query `{}` → last 100 provider ops `{ _id, key, kind, status: "started"|"succeeded"|"failed"|"outcome_unknown", refId?, providerId?, errorCode?, errorMessage?, attempts, createdAt, updatedAt }`.
+
+#### Admin telemetry (all admin-only; money is per-currency integer minor units)
+
+- `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingClawbacks`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, and `payoutsAwaiting`. Money is never summed across currencies.
+- `api.adminTelemetry.heldFunds` — query `{ limit? }` (1..200, default 100) → `{ now, settlementHoldHours, totals, entries, sampled }`. Pending ledger entries are oldest-first with `settlesAt = createdAt + settlementHoldHours`.
+- `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary, held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
+
+All telemetry scans are bounded (creators 1000, ledger 5000, donations 5000, payouts 2000). `sampled` flags mean a total may be partial; the UI must label those figures as samples rather than exact lifetime totals.
 
 ### 3.8 `contact`
 

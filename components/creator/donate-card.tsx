@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAction, useQuery } from "convex/react";
 import { Minus, Plus } from "lucide-react";
@@ -35,6 +35,7 @@ import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
   SUPPORTER_NAME_MAX_LENGTH,
+  appErrorCode,
   appErrorMessage,
   appErrorRetryAfterMs,
   formatMoney,
@@ -67,6 +68,18 @@ const QUICK_MESSAGES = [
   "Small something 💛",
 ];
 
+/** UUID v4 for the checkout attempt; stable for the life of this form. */
+function newAttemptId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /**
  * The support form on a public creator page. Honours the deployment's payment
  * mode: never pretends real payments exist when checkout isn't ready.
@@ -90,6 +103,19 @@ export function DonateCard({
   const [pending, setPending] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReset, setTurnstileReset] = useState(0);
+
+  // One stable attempt per creator form. Retries (double-clicks, flaky data)
+  // reuse it; only a definitive no-checkout failure rotates it.
+  const attemptIdRef = useRef<string | null>(null);
+  const submittingRef = useRef(false);
+  useEffect(() => {
+    attemptIdRef.current = newAttemptId();
+  }, [username]);
+
+  function getAttemptId(): string {
+    if (!attemptIdRef.current) attemptIdRef.current = newAttemptId();
+    return attemptIdRef.current;
+  }
 
   const total = breadPrice * quantity;
 
@@ -127,14 +153,19 @@ export function DonateCard({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // A synchronous guard closes the gap before React applies `pending` state.
+    if (submittingRef.current) return;
+
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
+    submittingRef.current = true;
     setPending(true);
     try {
       const trimmedMessage = message.trim();
       const result = await createCheckout({
+        attemptId: getAttemptId(),
         username,
         quantity,
         supporterName: supporterName.trim(),
@@ -156,7 +187,14 @@ export function DonateCard({
           ? `${appErrorMessage(error)} (retry in ${Math.ceil(retryAfterMs / 1000)}s)`
           : appErrorMessage(error),
       );
+      submittingRef.current = false;
       setPending(false);
+      // A definitive provider failure means no checkout exists. Rotate the
+      // attempt ID so the supporter can genuinely retry; transient/network
+      // errors keep it so those retries remain idempotent.
+      if (appErrorCode(error) === "checkout_failed") {
+        attemptIdRef.current = null;
+      }
       // Tokens are single-use. Reset after a failure so the next attempt gets
       // a fresh challenge instead of retrying a consumed token.
       setTurnstileToken(null);

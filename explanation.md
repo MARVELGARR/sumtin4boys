@@ -50,7 +50,7 @@ sequenceDiagram
     actor Creator
 
     Supporter->>Client: Selects bread quantity & enters message
-    Client->>ConvexAction: createCheckout({ username, quantity, supporterName, message })
+    Client->>ConvexAction: createCheckout({ attemptId, username, quantity, supporterName, message })
     Note over ConvexAction: 1. Rate-limit IP & Email<br/>2. Recompute amount server-side<br/>3. Generate unique reference & idempotency key
     ConvexAction->>ConvexDB: internalMutation: insert donation (pending) & apiOperation (started)
     ConvexAction->>Bachs: POST /v1/checkout-sessions (Idempotency-Key, decimal amounts)
@@ -196,16 +196,16 @@ Located in [`convex/donations.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/con
 
 1. **Public Action:** The client invokes `api.donations.createCheckout`. Actions in Convex run in a Node.js runtime capable of external HTTP network requests.
 2. **Phase 1 (Database Transaction):**
-   - The action executes `internalMutation: donations.initializeCheckout`.
-   - Generates a crypto-random, non-colliding `reference` (e.g., `ref_...`).
-   - Generates a unique `idempotencyKey`.
-   - Inserts a record into `donations` with `status: "pending"`.
-   - Inserts a record into `apiOperations` with `status: "started"`.
+   - The browser creates one `attemptId` UUID when the form opens and sends it with every retry.
+   - The action executes `internalMutation: donations.startCheckout`.
+   - It first looks up `donations.by_attemptId`. If this attempt already exists, it verifies the fields match and returns the original donation + hosted `checkoutUrl` without consuming rate-limit capacity or calling Bachs again.
+   - For a new attempt, it generates a crypto-random, non-colliding `reference` (e.g., `a4b_...`).
+   - It inserts the donation with `attemptId`, `status: "pending"`, and an `apiOperations` row with status `"started"`. The Bachs idempotency key is derived server-side from the donation reference.
 3. **Phase 2 (Gateway Call):**
    - The action calls Bachs: `POST /v1/checkout-sessions` sending the persisted `Idempotency-Key` header and decimal string amounts (e.g., `"3000.00"` NGN).
    - If Bachs returns `201 Created`:
-     - Updates donation with `checkoutId` and marks `apiOperations` as `succeeded`.
-     - Returns the hosted checkout URL to the frontend.
+     - Updates donation with `checkoutId` + `checkoutUrl` and marks `apiOperations` as `succeeded`.
+     - Returns the hosted checkout URL to the frontend. A retry with the same `attemptId` returns this stored URL instead of creating another checkout.
    - If Bachs returns a network error, timeout, or 5xx:
      - The outcome is unknown. The operation is marked `status: "outcome_unknown"`.
      - **Crucial Rule:** The backend does **not** generate a new key or blindly retry. The background reconciliation cron resolves the uncertain write using the original idempotency key.
@@ -321,7 +321,8 @@ Located in [`convex/lib/guards.ts`](file:///c:/Users/USER/Desktop/sumtin4boys/co
 
 - `requireUser(ctx)`: Ensures caller is authenticated via Convex Auth.
 - `requireCreator(ctx)`: Verifies caller owns an active creator profile. Prohibits accessing another creator's payout history or settings.
-- `requireAdmin(ctx)`: Verifies caller's email matches the configured `ADMIN_EMAILS` whitelist. Grants access to manual payout approvals, platform fee configuration, and creator suspensions.
+- `requireAdmin(ctx)`: Verifies the caller's email is in the configured `ADMIN_EMAILS` whitelist **and** that the email is verified (`emailVerificationTime`). This protects manual payout approvals, creator suspension/reactivation, balance recomputation, contact messages, audit logs, and the read-only telemetry queries in `convex/adminTelemetry.ts`.
+- The `/admin` page adds two more layers: auth middleware gates the route, and the client `amIAdmin` gate does not mount any sensitive table until admin access is confirmed. Telemetry money is always bucketed per currency; overview/held scans are bounded and marked sampled, with a creator detail drawer for recent donations, payouts, and ledger entries.
 
 ---
 

@@ -188,6 +188,15 @@ export function eventId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+let requestSequence = 0;
+
+/** A valid UUID v4-shaped checkout attempt id, unique within a test run. */
+export function newRequestId(): string {
+  requestSequence += 1;
+  const tail = requestSequence.toString(16).padStart(12, "0");
+  return `00000000-0000-4000-8000-${tail}`;
+}
+
 /** Temporarily set env vars (read through convex/lib/config.ts at call time). */
 export async function withEnv<T>(
   env: Record<string, string>,

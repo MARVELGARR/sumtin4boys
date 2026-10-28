@@ -138,6 +138,7 @@ export const reconcileUncertainOperations = internalAction({
         operationId: operation.operationId,
         ok: result.ok,
         checkoutId: result.ok ? result.checkoutId : undefined,
+        checkoutUrl: result.ok ? result.url : undefined,
         errorCode: result.ok ? undefined : result.code,
         errorMessage: result.ok ? undefined : result.message,
         outcomeUnknown: result.ok ? false : result.outcomeUnknown,

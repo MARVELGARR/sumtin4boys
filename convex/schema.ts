@@ -90,9 +90,18 @@ export default defineSchema({
     currency: v.string(),
     /** Unique, human-readable id sent to Bachs and shown to the supporter. */
     reference: v.string(),
+    /**
+     * Browser-generated UUID created when the support form opens. Reused by
+     * every retry of that form so a double-click or flaky-network retry returns
+     * the existing checkout instead of creating a second donation. Optional
+     * only for rows that predate this field.
+     */
+    attemptId: v.optional(v.string()),
     driver: v.union(v.literal("bachs"), v.literal("simulated")),
 
     checkoutId: v.optional(v.string()),
+    /** Hosted checkout URL returned to the supporter, stored for idempotent retries. */
+    checkoutUrl: v.optional(v.string()),
     /** Provider payment (charge) id, once known. */
     paymentId: v.optional(v.string()),
 
@@ -128,6 +137,7 @@ export default defineSchema({
     abandonedAt: v.optional(v.number()),
   })
     .index("by_reference", ["reference"])
+    .index("by_attemptId", ["attemptId"])
     .index("by_checkoutId", ["checkoutId"])
     .index("by_paymentId", ["paymentId"])
     .index("by_creator", ["creatorId", "createdAt"])

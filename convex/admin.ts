@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { applyLedgerEntry } from "./ledger";
+import { settlementHoldHours } from "./lib/config";
 import { appError } from "./lib/errors";
 import { isAdmin, requireAdmin } from "./lib/guards";
 
@@ -85,6 +86,8 @@ const creatorOverviewValidator = v.object({
     v.literal("blocked"),
   ),
   createdAt: v.number(),
+  nextSettlementAt: v.union(v.number(), v.null()),
+  payoutsAwaiting: v.number(),
 });
 
 export const listCreators = query({
@@ -93,6 +96,39 @@ export const listCreators = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
     const creators = await ctx.db.query("creators").order("desc").take(100);
+
+    // Pending settlement times per creator. One bounded scan is enough for
+    // the admin list; the per-creator detail view has its own breakdown.
+    const holdMs = settlementHoldHours() * 60 * 60 * 1000;
+    const pendingEntries = await ctx.db
+      .query("ledgerEntries")
+      .withIndex("by_settlement", (q) => q.eq("settlementStatus", "pending"))
+      .take(5000);
+    const nextSettlementByCreator = new Map<Id<"creators">, number>();
+    for (const entry of pendingEntries) {
+      const settlesAt = entry.createdAt + holdMs;
+      const current = nextSettlementByCreator.get(entry.creatorId);
+      if (current === undefined || settlesAt < current) {
+        nextSettlementByCreator.set(entry.creatorId, settlesAt);
+      }
+    }
+
+    // Open withdrawals are relatively few; query them by status so the sum
+    // does not depend on walking each creator's payout history.
+    const awaitingByCreator = new Map<Id<"creators">, number>();
+    for (const status of ["requested", "processing"] as const) {
+      const open = await ctx.db
+        .query("payouts")
+        .withIndex("by_status", (q) => q.eq("status", status))
+        .take(1000);
+      for (const payout of open) {
+        awaitingByCreator.set(
+          payout.creatorId,
+          (awaitingByCreator.get(payout.creatorId) ?? 0) + payout.amount,
+        );
+      }
+    }
+
     const rows = [];
     for (const creator of creators) {
       const user = await ctx.db.get("users", creator.userId);
@@ -111,6 +147,8 @@ export const listCreators = query({
         balancePaidOut: creator.balancePaidOut,
         onboardingStatus: creator.onboardingStatus,
         createdAt: creator.createdAt,
+        nextSettlementAt: nextSettlementByCreator.get(creator._id) ?? null,
+        payoutsAwaiting: awaitingByCreator.get(creator._id) ?? 0,
       });
     }
     return rows;

@@ -7,6 +7,7 @@ import {
   forUser,
   makeCreatorWithUser,
   makeTest,
+  newRequestId,
   withEnv,
 } from "./helpers.test-utils";
 
@@ -17,6 +18,15 @@ const VALID = {
   supporterEmail: "sam@test.com",
   isPrivate: false,
 };
+
+type CheckoutOverrides = Partial<typeof VALID> & {
+  message?: string;
+  attemptId?: string;
+};
+
+function checkoutArgs(overrides: CheckoutOverrides = {}) {
+  return { ...VALID, attemptId: newRequestId(), ...overrides };
+}
 
 async function expectRateLimited(promise: Promise<unknown>) {
   try {
@@ -45,13 +55,12 @@ describe("simulated end-to-end donation", () => {
     expect(mode.connectEnabled).toBe(false);
     expect(mode.platformFeeBps).toBe(500);
 
-    const result = await t.action(api.donations.createCheckout, {
-      ...VALID,
+    const result = await t.action(api.donations.createCheckout, checkoutArgs({
       username: "  Ada  ",
       supporterName: "  Sam Supporter  ",
       supporterEmail: "  Sam@Test.COM  ",
       message: "  Keep going!  ",
-    });
+    }));
     expect(result.status).toBe("redirect");
     if (result.status !== "redirect") throw new Error("expected a redirect result");
     expect(result.reference).toMatch(/^a4b_/);
@@ -134,7 +143,7 @@ describe("simulated end-to-end donation", () => {
     const t = makeTest();
     await makeCreatorWithUser(t, { username: "ada", coffeePrice: 50_000 });
 
-    const first = await t.action(api.donations.createCheckout, VALID);
+    const first = await t.action(api.donations.createCheckout, checkoutArgs());
     expect(first.status).toBe("redirect");
     const failed = await t.mutation(api.bachs.simulated.completeSimulatedCheckout, {
       reference: first.reference,
@@ -145,7 +154,7 @@ describe("simulated end-to-end donation", () => {
       (await t.query(api.donations.getByReference, { reference: first.reference }))?.status,
     ).toBe("unresolved");
 
-    const second = await t.action(api.donations.createCheckout, VALID);
+    const second = await t.action(api.donations.createCheckout, checkoutArgs());
     expect(second.status).toBe("redirect");
     const expired = await t.mutation(api.bachs.simulated.completeSimulatedCheckout, {
       reference: second.reference,
@@ -165,34 +174,33 @@ describe("simulated end-to-end donation", () => {
     });
 
     await expect(
-      t.action(api.donations.createCheckout, { ...VALID, username: "nobody" }),
+      t.action(api.donations.createCheckout, checkoutArgs({ username: "nobody" })),
     ).rejects.toMatchObject({ data: { code: "creator_not_found" } });
 
     await expect(
-      t.action(api.donations.createCheckout, { ...VALID, supporterEmail: "not-an-email" }),
+      t.action(api.donations.createCheckout, checkoutArgs({ supporterEmail: "not-an-email" })),
     ).rejects.toMatchObject({ data: { code: "invalid_input" } });
 
     await expect(
-      t.action(api.donations.createCheckout, { ...VALID, quantity: 0 }),
+      t.action(api.donations.createCheckout, checkoutArgs({ quantity: 0 })),
     ).rejects.toMatchObject({ data: { code: "invalid_input" } });
 
     await expect(
-      t.action(api.donations.createCheckout, { ...VALID, quantity: 11 }),
+      t.action(api.donations.createCheckout, checkoutArgs({ quantity: 11 })),
     ).rejects.toMatchObject({ data: { code: "invalid_input" } });
 
     await expect(
-      t.action(api.donations.createCheckout, { ...VALID, supporterName: "   " }),
+      t.action(api.donations.createCheckout, checkoutArgs({ supporterName: "   " })),
     ).rejects.toMatchObject({ data: { code: "invalid_input" } });
 
     await expect(
-      t.action(api.donations.createCheckout, {
-        ...VALID,
+      t.action(api.donations.createCheckout, checkoutArgs({
         message: "x".repeat(MESSAGE_MAX_LENGTH + 1),
-      }),
+      })),
     ).rejects.toMatchObject({ data: { code: "invalid_input" } });
 
     await t.run(async (ctx) => ctx.db.patch("creators", creatorId, { status: "suspended" }));
-    await expect(t.action(api.donations.createCheckout, VALID)).rejects.toMatchObject({
+    await expect(t.action(api.donations.createCheckout, checkoutArgs())).rejects.toMatchObject({
       data: { code: "creator_suspended" },
     });
   });
@@ -203,6 +211,7 @@ describe("simulated end-to-end donation", () => {
 
     const attempt = (supporterEmail: string) =>
       t.mutation(internal.donations.startCheckout, {
+        attemptId: newRequestId(),
         username: "ada",
         quantity: 1,
         supporterName: "Flood",
@@ -234,7 +243,7 @@ describe("simulated checkout guardrails", () => {
         expect(mode.driver).toBe("bachs");
         expect(mode.checkoutReady).toBe(false);
 
-        await expect(t.action(api.donations.createCheckout, VALID)).rejects.toMatchObject({
+        await expect(t.action(api.donations.createCheckout, checkoutArgs())).rejects.toMatchObject({
           data: { code: "payments_unavailable" },
         });
         expect(await t.run(async (ctx) => ctx.db.query("donations").collect())).toHaveLength(0);

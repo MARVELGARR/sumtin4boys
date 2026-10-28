@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminTelemetry from "../adminTelemetry.js";
 import type * as auth from "../auth.js";
 import type * as authEmails from "../authEmails.js";
 import type * as bachs_bachsNode from "../bachs/bachsNode.js";
@@ -44,6 +45,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminTelemetry: typeof adminTelemetry;
   auth: typeof auth;
   authEmails: typeof authEmails;
   "bachs/bachsNode": typeof bachs_bachsNode;

@@ -13,6 +13,18 @@ export const SUPPORTER_NAME_MAX_LENGTH = 60;
 export const MESSAGE_MAX_LENGTH = 280;
 export const MAX_QUANTITY = 10;
 
+/**
+ * A browser-generated UUID used as the checkout idempotency key. UUID v4 has
+ * enough entropy that two supporters (or two tabs) won't collide, and the
+ * fixed shape lets us reject arbitrary client strings before storing them.
+ */
+export const CHECKOUT_REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidCheckoutRequestId(value: string): boolean {
+  return value.length === 36 && CHECKOUT_REQUEST_ID_PATTERN.test(value);
+}
+
 /** Avatar formats we can safely serve as images (no SVG/HTML uploads). */
 export const ALLOWED_AVATAR_CONTENT_TYPES = [
   "image/png",

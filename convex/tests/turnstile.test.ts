@@ -5,6 +5,7 @@ import { appErrorCode } from "../lib/errors";
 import {
   makeCreatorWithUser,
   makeTest,
+  newRequestId,
   withEnv,
 } from "./helpers.test-utils";
 
@@ -15,6 +16,14 @@ const VALID = {
   supporterEmail: "sam@test.com",
   isPrivate: false,
 };
+
+type CheckoutOverrides = Partial<typeof VALID> & {
+  turnstileToken?: string;
+};
+
+function checkoutArgs(overrides: CheckoutOverrides = {}) {
+  return { ...VALID, attemptId: newRequestId(), ...overrides };
+}
 
 const TURNSTILE_ENV = {
   TURNSTILE_SECRET_KEY: "turnstile-secret",
@@ -41,7 +50,7 @@ describe("Turnstile checkout protection", () => {
     expect(mode.turnstileRequired).toBe(false);
     expect(mode.turnstileSiteKey).toBeUndefined();
 
-    const result = await t.action(api.donations.createCheckout, VALID);
+    const result = await t.action(api.donations.createCheckout, checkoutArgs());
     expect(result.status).toBe("redirect");
   });
 
@@ -53,7 +62,7 @@ describe("Turnstile checkout protection", () => {
 
     await withEnv(TURNSTILE_ENV, async () => {
       await expect(
-        t.action(api.donations.createCheckout, VALID),
+        t.action(api.donations.createCheckout, checkoutArgs()),
       ).rejects.toMatchObject({ data: { code: "verification_failed" } });
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -74,10 +83,9 @@ describe("Turnstile checkout protection", () => {
 
     await withEnv(TURNSTILE_ENV, async () => {
       const error = await t
-        .action(api.donations.createCheckout, {
-          ...VALID,
+        .action(api.donations.createCheckout, checkoutArgs({
           turnstileToken: "bad-token",
-        })
+        }))
         .catch((caught: unknown) => caught);
       expect(appErrorCode(error)).toBe("verification_failed");
     });
@@ -100,10 +108,9 @@ describe("Turnstile checkout protection", () => {
 
     await withEnv(TURNSTILE_ENV, async () => {
       await expect(
-        t.action(api.donations.createCheckout, {
-          ...VALID,
+        t.action(api.donations.createCheckout, checkoutArgs({
           turnstileToken: "token",
-        }),
+        })),
       ).rejects.toMatchObject({ data: { code: "verification_failed" } });
     });
   });
@@ -118,10 +125,9 @@ describe("Turnstile checkout protection", () => {
 
     await withEnv(TURNSTILE_ENV, async () => {
       await expect(
-        t.action(api.donations.createCheckout, {
-          ...VALID,
+        t.action(api.donations.createCheckout, checkoutArgs({
           turnstileToken: "token-for-login",
-        }),
+        })),
       ).rejects.toMatchObject({ data: { code: "verification_failed" } });
     });
   });
@@ -135,10 +141,9 @@ describe("Turnstile checkout protection", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await withEnv(TURNSTILE_ENV, async () => {
-      const result = await t.action(api.donations.createCheckout, {
-        ...VALID,
+      const result = await t.action(api.donations.createCheckout, checkoutArgs({
         turnstileToken: "valid-token",
-      });
+      }));
       expect(result.status).toBe("redirect");
     });
 
@@ -167,7 +172,7 @@ describe("Turnstile checkout protection", () => {
         expect(mode.turnstileRequired).toBe(true);
 
         await expect(
-          t.action(api.donations.createCheckout, VALID),
+          t.action(api.donations.createCheckout, checkoutArgs()),
         ).rejects.toMatchObject({ data: { code: "payments_unavailable" } });
       },
     );

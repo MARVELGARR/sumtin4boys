@@ -111,6 +111,8 @@ Supporter ──► Next.js  /[username]   (SSR via preloadQuery, live via Conve
 │   ├── donations.ts               # createCheckout (action), internal state mutations
 │   ├── ledger.ts
 │   ├── payouts.ts
+│   ├── admin.ts                   # admin mutations + operational lists
+│   ├── adminTelemetry.ts          # protected dashboard overview/held/detail queries
 │   ├── sellers.ts                 # Connect onboarding state
 │   ├── emails.ts
 │   ├── crons.ts                   # reconciliation
@@ -185,8 +187,9 @@ export default defineSchema({
     platformFee: v.number(),            // minor units
     netAmount: v.number(),
     reference: v.string(),              // unique forever; never reused (even after expiry)
-    idempotencyKey: v.string(),         // persisted BEFORE the Bachs call
+    attemptId: v.optional(v.string()),  // browser UUID; dedupes double-click/retry
     checkoutId: v.optional(v.string()),
+    checkoutUrl: v.optional(v.string()),// reused when the same attempt arrives again
     paymentId: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),
@@ -199,6 +202,7 @@ export default defineSchema({
     paidAt: v.optional(v.number()),
   })
     .index("by_reference", ["reference"])
+    .index("by_attemptId", ["attemptId"])
     .index("by_checkoutId", ["checkoutId"])
     .index("by_creator_status", ["creatorId", "status"])
     .index("by_status_createdAt", ["status", "createdAt"]),
@@ -257,13 +261,15 @@ export default defineSchema({
 
 ### 7.1 Create checkout (`donations.createCheckout`, public **action**)
 
-1. Rate limit by IP/email (Convex rate-limiter component).
-2. Validate args (quantity bounds, email format, message length, creator active and onboarded).
-3. **Recompute amount server-side** from `creator.coffeePrice * quantity` (the field is exposed publicly as `breadPrice`). Ignore any client amount. Compute `platformFee` from server config.
-4. `internalMutation`: insert donation (`pending`) with a fresh `reference` and `idempotencyKey`, and an `apiOperations` row (`started`).
-5. Call Bachs to create the hosted checkout session (`product_cart`, `reference`, destination seller account, fee, redirect URLs). Send the persisted `Idempotency-Key`.
-6. On success: save `checkoutId`, mark operation `succeeded`, return the checkout URL.
-7. On timeout / 5xx: mark `outcome_unknown`. **Reconcile before resubmitting**; never blindly retry with a new key.
+1. The browser generates one `attemptId` UUID when the support form opens and reuses it for every retry.
+2. Rate limit by email/creator (Convex rate-limiter component). Duplicate attempts return before consuming a bucket.
+3. Validate args (quantity bounds, email format, message length, creator active and onboarded).
+4. **Recompute amount server-side** from `creator.coffeePrice * quantity` (the field is exposed publicly as `breadPrice`). Ignore any client amount. Compute `platformFee` from server config.
+5. `internalMutation`: look up `donations.by_attemptId`. If found, verify the request fields match and return the existing donation + `checkoutUrl`.
+6. Otherwise insert donation (`pending`) with `attemptId`, a fresh `reference`, and an `apiOperations` row (`started`).
+7. Call Bachs to create the hosted checkout session (`product_cart`, `reference`, destination seller account, fee, redirect URLs). Send the persisted `Idempotency-Key` derived from `reference`.
+8. On success: save `checkoutId` + `checkoutUrl`, mark operation `succeeded`, return the checkout URL.
+9. On timeout / 5xx: mark `outcome_unknown`. **Reconcile before resubmitting**; never blindly retry with a new key.
 
 > **Open question:** the skill's one-time flow uses `product_cart`. Confirm in `checkout-sessions.md` whether custom / pay-what-you-want amounts are supported. If not, model bread as a product with quantities (1, 3, 5) and map them on the server.
 
@@ -331,6 +337,9 @@ Checkout sessions: `/guides/checkout/checkout-sessions.md` · Webhooks: `/guides
 - All webhook-driven state changes use **`internalMutation`/`internalAction`** only, never public functions.
 - Supporter emails are visible only to the owning creator and admins.
 - Suspended creators: page returns 404/notice, `createCheckout` refuses.
+- `/admin` is protected in three layers: auth middleware, the client-side `amIAdmin` gate (no sensitive query is mounted before it returns true), and `requireAdmin` in every admin query/mutation. Admin access requires an allow-listed email **and** `emailVerificationTime`.
+- Admin telemetry (`convex/adminTelemetry.ts`) is admin-only. Money is always bucketed by currency and never summed across currencies. Overview/held-funds scans are bounded and flag sampled totals; `creatorDetail` bounds its recent-history lists.
+- The admin console covers overview/financial telemetry, creators, held funds + settlement countdowns, payouts, webhook/API activity, contact messages, and the append-only admin audit log.
 
 ---
 
@@ -345,7 +354,7 @@ Checkout sessions: `/guides/checkout/checkout-sessions.md` · Webhooks: `/guides
 | `/dashboard/payouts` | Balance and payout history | Request payout, show failures |
 | `/dashboard/settings` | Account, onboarding status | Connect seller onboarding |
 | `/onboarding` | Username, profile, payout setup | Blocked-onboarding state handled explicitly |
-| `/admin` | Moderation, fee config | Admin only |
+| `/admin` | Operations console: creator management, financial telemetry, held funds, payouts, activity, messages, audit | Admin only |
 
 Reserved usernames (`admin`, `dashboard`, `api`, `thanks`, etc.) are blocked at creation.
 
