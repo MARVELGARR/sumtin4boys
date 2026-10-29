@@ -1,3 +1,8 @@
+
+
+
+
+
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -19,6 +24,7 @@ export async function generateMetadata({
   params,
 }: CreatorPageProps): Promise<Metadata> {
   const { username } = await params;
+
   const { creator } = await fetchQuery(api.creators.getByUsername, { username });
 
   if (!creator) {
@@ -64,6 +70,8 @@ export async function generateMetadata({
 
 export default async function CreatorProfilePage({ params }: CreatorPageProps) {
   const { username } = await params;
+
+  if (username) notFound();
   const preloaded = await preloadQuery(api.creators.getByUsername, { username });
   const { creator } = preloadedQueryResult(preloaded);
   if (!creator) notFound();

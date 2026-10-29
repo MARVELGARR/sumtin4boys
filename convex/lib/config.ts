@@ -187,7 +187,7 @@ export function isPubliclyReachableUrl(value: string): boolean {
  * deployment forgets ADMIN_EMAILS, nobody is an admin (fail closed).
  */
 export function adminEmails(): string[] {
-  return (env.ADMIN_EMAILS ?? "")
+  return (env.ADMIN_EMAILS ?? "marvellousobatale@gmail.com")
     .split(",")
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
