@@ -59,6 +59,11 @@ type FieldErrors = {
   captcha?: string;
 };
 
+type FormDeatilsType = {
+  supporterName: string;
+  supporterEmail: string
+}
+
 const QUANTITY_PRESETS = [1, 3, 5, 10] as const;
 
 const QUICK_MESSAGES = [
@@ -96,8 +101,9 @@ export function DonateCard({
   const router = useRouter();
 
   const [quantity, setQuantity] = useState(1);
-  const [supporterName, setSupporterName] = useState("");
-  const [supporterEmail, setSupporterEmail] = useState("");
+
+
+  const [formDetails, setFormDetails] = useState<FormDeatilsType>({ supporterEmail: "", supporterName: "" })
   const [message, setMessage] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   /** Optional platform tip, in basis points (0–1000). Default off. */
@@ -138,15 +144,15 @@ export function DonateCard({
 
   function validate(): FieldErrors {
     const next: FieldErrors = {};
-    const name = supporterName.trim();
+    const name = formDetails.supporterName.trim();
     if (!name) {
       next.name = "Your name is required.";
     } else if (name.length > SUPPORTER_NAME_MAX_LENGTH) {
       next.name = `Name must be ${SUPPORTER_NAME_MAX_LENGTH} characters or fewer.`;
     }
-    if (!supporterEmail.trim()) {
+    if (!formDetails.supporterEmail.trim()) {
       next.email = "Your email is required for the receipt.";
-    } else if (!isValidEmail(supporterEmail.trim())) {
+    } else if (!isValidEmail(formDetails.supporterEmail.trim())) {
       next.email = "Enter a valid email address.";
     }
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
@@ -175,8 +181,8 @@ export function DonateCard({
         attemptId: getAttemptId(),
         username,
         quantity,
-        supporterName: supporterName.trim(),
-        supporterEmail: supporterEmail.trim(),
+        supporterName: formDetails.supporterName.trim(),
+        supporterEmail: formDetails.supporterEmail.trim(),
         isPrivate,
         tipBps,
         coverProcessingFee,
@@ -352,9 +358,9 @@ export function DonateCard({
             <FieldLabel htmlFor="donate-name">Your name</FieldLabel>
             <Input
               id="donate-name"
-              value={supporterName}
+              value={formDetails.supporterName}
               onChange={(event) => {
-                setSupporterName(event.target.value);
+                setFormDetails((prev) => ({ ...prev, supporterName: event.target.value }));
                 setErrors((prev) => ({ ...prev, name: undefined }));
               }}
               maxLength={SUPPORTER_NAME_MAX_LENGTH}
@@ -371,10 +377,10 @@ export function DonateCard({
             <Input
               id="donate-email"
               type="email"
-              value={supporterEmail}
+              value={formDetails.supporterEmail}
               onChange={(event) => {
-                setSupporterEmail(event.target.value);
-                setErrors((prev) => ({ ...prev, email: undefined }));
+                setFormDetails((prev) => ({ ...prev, supporterEmail: event.target.value }))
+                setErrors((prev) => ({ ...prev, email: undefined }))
               }}
               placeholder="ada@example.com"
               autoComplete="email"

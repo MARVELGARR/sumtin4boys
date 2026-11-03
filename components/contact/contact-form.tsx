@@ -42,12 +42,17 @@ type FieldErrors = {
   message?: string;
 };
 
+type FormDetailsType = {
+  name: string;
+  email: string;
+  topic: Topic;
+  message: string;
+  website: string
+}
 export function ContactForm() {
   const submit = useMutation(api.contact.submit);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [topic, setTopic] = useState<Topic>("support");
-  const [message, setMessage] = useState("");
+
+  const [formDetaiils, setFormDetails] = useState<FormDetailsType>({ name: "", email: "", topic: "support", message: "", website: "" })
   const [website, setWebsite] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +61,11 @@ export function ContactForm() {
 
   function validate(): FieldErrors {
     const next: FieldErrors = {};
-    if (name.trim().length < 2) next.name = "Add your name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+    if (formDetaiils.name.trim().length < 2) next.email = "Add your name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formDetaiils.email.trim())) {
       next.email = "Enter a valid email address.";
     }
-    if (message.trim().length < 20) {
+    if (formDetaiils.message.trim().length < 20) {
       next.message = "Tell us a little more (at least 20 characters).";
     }
     return next;
@@ -77,17 +82,17 @@ export function ContactForm() {
     setPending(true);
     try {
       await submit({
-        name: name.trim(),
-        email: email.trim(),
-        topic,
-        message: message.trim(),
-        ...(website ? { website } : {}),
+        name: formDetaiils.name.trim(),
+        email: formDetaiils.email.trim(),
+        topic: formDetaiils.topic,
+        message: formDetaiils.message.trim(),
+        ...(formDetaiils.website ? { website } : {}),
       });
       setSent(true);
-      setName("");
-      setEmail("");
-      setMessage("");
-      setTopic("support");
+      setFormDetails((prev) => ({ ...prev, name: "" }));
+      setFormDetails((prev) => ({ ...prev, email: "" }));
+      setFormDetails((prev) => ({ ...prev, message: "" }));
+      setFormDetails((prev) => ({ ...prev, topic: "support" }));
       toast.success("Message sent. We'll reply by email.");
     } catch (caught) {
       const text = appErrorMessage(
@@ -145,9 +150,9 @@ export function ContactForm() {
             <Input
               id="contact-name"
               name="name"
-              value={name}
+              value={formDetaiils.name}
               onChange={(event) => {
-                setName(event.target.value);
+                setFormDetails((prev) => ({ ...prev, name: event.target.value }))
                 setErrors((current) => ({ ...current, name: undefined }));
               }}
               placeholder="Ada"
@@ -166,9 +171,9 @@ export function ContactForm() {
               id="contact-email"
               name="email"
               type="email"
-              value={email}
+              value={formDetaiils.email}
               onChange={(event) => {
-                setEmail(event.target.value);
+                setFormDetails((prev) => ({ ...prev, email: event.target.value }))
                 setErrors((current) => ({ ...current, email: undefined }));
               }}
               placeholder="you@example.com"
@@ -184,8 +189,8 @@ export function ContactForm() {
         <Field>
           <FieldLabel htmlFor="contact-topic">What is this about?</FieldLabel>
           <Select
-            value={topic}
-            onValueChange={(value) => setTopic(value as Topic)}
+            value={formDetaiils.topic}
+            onValueChange={(value) => setFormDetails((prev) => ({ ...prev, topic: value as Topic }))}
             disabled={pending}
           >
             <SelectTrigger id="contact-topic" className="h-10 w-full">
@@ -206,9 +211,9 @@ export function ContactForm() {
           <Textarea
             id="contact-message"
             name="message"
-            value={message}
+            value={formDetaiils.message}
             onChange={(event) => {
-              setMessage(event.target.value);
+              setFormDetails((prev) => ({ ...prev, message: event.target.value }))
               setErrors((current) => ({ ...current, message: undefined }));
             }}
             placeholder="Tell us what happened, what you need, or what you're building. Include a payment reference if you have one."
@@ -224,7 +229,7 @@ export function ContactForm() {
               details.
             </FieldDescription>
             <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-              {message.length}/5,000
+              {formDetaiils.message.length}/5,000
             </span>
           </div>
           <FieldError>{errors.message}</FieldError>
@@ -236,8 +241,8 @@ export function ContactForm() {
           <input
             id="contact-website"
             name="website"
-            value={website}
-            onChange={(event) => setWebsite(event.target.value)}
+            value={formDetaiils.website}
+            onChange={(event) => setFormDetails((prev) => ({ ...prev, website: event.target.value }))}
             tabIndex={-1}
             autoComplete="off"
           />

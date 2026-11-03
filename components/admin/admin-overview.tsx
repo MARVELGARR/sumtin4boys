@@ -535,9 +535,8 @@ function ConfigCard({ overview }: { overview: Overview }) {
         />
         <ConfigRow
           label="Settlement hold"
-          value={`${config.settlementHoldHours.toLocaleString()} ${
-            config.settlementHoldHours === 1 ? "hour" : "hours"
-          }`}
+          value={`${config.settlementHoldHours.toLocaleString()} ${config.settlementHoldHours === 1 ? "hour" : "hours"
+            }`}
           tone="neutral"
         />
         <div className="rounded-lg bg-muted/60 p-2.5">
@@ -574,9 +573,9 @@ function ConfigRow({
         className={cn(
           "border-0 whitespace-nowrap",
           tone === "good" &&
-            "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+          "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
           tone === "warning" &&
-            "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+          "bg-amber-500/10 text-amber-700 dark:text-amber-400",
           tone === "muted" && "bg-muted text-muted-foreground",
           tone === "neutral" && "bg-muted text-foreground",
         )}
