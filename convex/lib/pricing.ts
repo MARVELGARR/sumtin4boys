@@ -144,20 +144,26 @@ export function minPayoutMinorFor(currency: string): number {
 
 /**
  * Largest net amount a creator can request from `availableMinor` after the
- * payout fee is added on top. The fee depends on the net amount, so this
- * settles in at most a couple of iterations.
+ * payout fee is added on top.
+ *
+ * `net + fee(net)` is monotonic, so binary search finds the exact maximum
+ * even when the fee rounds (percentage currencies). A fixed-point iteration
+ * leaves a few minor units on the table about half the time.
  */
 export function maxPayoutNet(availableMinor: number, currency: string): number {
   if (!Number.isSafeInteger(availableMinor) || availableMinor <= 0) return 0;
-  let net = availableMinor;
-  for (let i = 0; i < 4; i += 1) {
-    const fee = payoutFeeFor(net, currency);
-    const total = net + fee;
-    if (total <= availableMinor) return net;
-    net = availableMinor - fee;
-    if (net <= 0) return 0;
+  let low = 0;
+  let high = availableMinor;
+  while (low < high) {
+    // Upper mid avoids an infinite loop when `low + 1 === high`.
+    const mid = Math.floor((low + high + 1) / 2);
+    if (mid + payoutFeeFor(mid, currency) <= availableMinor) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
   }
-  return Math.max(0, Math.min(net, availableMinor));
+  return low;
 }
 
 /** True when the currency has a configured decimal precision. */

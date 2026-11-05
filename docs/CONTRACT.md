@@ -208,15 +208,20 @@ Creator-only:
 
 #### `api.payouts.getBalances` — query `{}`
 
-Creator-only: `{ currency, pending, available, withdrawable, processing, processingFees, processingTotal, paidOut, netEarned, minimum, connectMode, hasOpenPayout }` (all minor units).
+Creator-only: `{ currency, pending, available, withdrawable, processing, processingFees, processingTotal, paidOut, payoutFeesPaid, netEarned, minimum, connectMode, hasOpenPayout }` (all minor units).
 
 - `pending` is net pending ledger entries (can be negative).
 - `available` is the settled balance before negative pending deductions.
 - `withdrawable` is what can actually be requested (`payoutableBalance`).
 - `processing` is the net amount of open payouts; `processingFees` and
   `processingTotal` show the fee and full reservation.
-- `paidOut` is lifetime net received; `netEarned` is lifetime donation earnings
+- `paidOut` is lifetime net received; `payoutFeesPaid` is lifetime payout fees
+  charged on successful withdrawals; `netEarned` is lifetime donation earnings
   after platform fees and before payout fees.
+- `pending + available + processingTotal + paidOut + payoutFeesPaid` equals
+  `netEarned`. The dashboard shows those five cards and the total; the
+  available card also shows the immediately withdrawable amount when negative
+  pending entries reduce it.
 - Minimums: NGN ₦1,000; USD $10; other currencies 100,000 minor units.
 
 #### `api.payouts.request` — mutation `{ amount: number }`
@@ -229,7 +234,11 @@ payout fee is added on top, so `amount + fee` is reserved. Returns
 
 Payout fees: NGN ₦50 flat; USD 1% with a $1 minimum and $15 cap; other
 currencies 0.3%. A failed payout releases `totalDebited`; a paid payout records
-the net amount as paid out and the fee as a platform pass-through.
+the net amount as paid out and the fee as a platform pass-through. The collected
+fee is always charged to the creator. Only `method: "bachs"` also records a
+matching `payout_fee_expense`, because that fee is paid to Bachs. Manual bank
+transfers have their own unknown bank cost, so no provider expense is invented;
+the collected fee offsets it instead.
 
 #### `api.payouts.listMine` — query `{ paginationOpts }`
 
@@ -287,11 +296,11 @@ All admin functions throw `forbidden` for non-admins (`ADMIN_EMAILS` env on the 
 
 #### Admin telemetry (all admin-only; money is per-currency integer minor units)
 
-- `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingDeductions`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, `payoutsAwaiting`, and `payoutFeesAwaiting`. `heldForSettlement` is net pending (positive credits minus deductions), `pendingDeductions` is the absolute value of negative pending entries already netted out, `payoutsAwaiting` is net open withdrawals, and `creatorOwned` is pending + available + open payouts + their fees, i.e. the full amount reserved for creators. Money is never summed across currencies.
+- `api.adminTelemetry.overview` — query `{}` → `{ now, config, counts, health, currencies, sampled }`. `config.webhookUrl` is the exact Bachs webhook endpoint derived from `CONVEX_SITE_URL` (`https://<deployment>.convex.site/bachs/webhook`), or `""` when unavailable. `currencies[]` contains `creatorOwned`, `creatorPending`, `creatorAvailable`, `heldForSettlement`, `pendingDeductions`, `nextSettlementAt`, `platformGrossFees`, `platformFeeReversals`, `platformNetRevenue`, `platformTipsGross`, `platformTipReversals`, `platformTipsNet`, `processingFeeExpenses`, `payoutFeesCollected`, `payoutFeeExpenses`, `payoutFeesNet`, `platformAdjustments`, `platformTotalNet`, `grossDonationVolume`, `refundedVolume`, `paidOutLifetime`, `payoutsAwaiting`, and `payoutFeesAwaiting`. `heldForSettlement` is net pending (positive credits minus deductions), `pendingDeductions` is the absolute value of negative pending entries already netted out, `payoutsAwaiting` is net open withdrawals, and `creatorOwned` is pending + available + open payouts + their fees, i.e. the full amount reserved for creators. `platformNetRevenue` is platform fees minus fee reversals only; `platformTotalNet` also adds net tips, net payout fees, and platform adjustments, then subtracts processing-fee expenses. Money is never summed across currencies.
 - `api.adminTelemetry.heldFunds` — query `{ limit? }` (1..200, default 100) → `{ now, settlementHoldHours, totals, entries, sampled }`. Pending ledger entries are oldest-first with `settlesAt = createdAt + settlementHoldHours`.
 - `api.adminTelemetry.creatorDetail` — query `{ creatorId }` → creator summary (including `payoutsAwaiting`, `payoutFeesAwaiting`, and `payoutsSampled`), held entries (bounded), latest 15 donations, latest 15 payouts, and latest 20 ledger entries. Throws `not_found` for a missing creator.
 
-All telemetry scans are bounded (creators 1000, ledger 5000, donations 5000, payouts 2000). `sampled` flags mean a total may be partial; the UI must label those figures as samples rather than exact lifetime totals.
+All telemetry scans are bounded (creators 1000, ledger 5000, platform ledger 5000, donations 5000, payouts 2000). `sampled` flags mean a total may be partial (including `sampled.platformLedger` for tips, processing costs, and payout fees); the UI must label those figures as samples rather than exact lifetime totals.
 
 ### 3.8 `contact`
 

@@ -15,7 +15,11 @@ const HOUR_MS = 60 * 60 * 1000;
 const HOLD_HOURS = 24;
 const HOLD_MS = HOLD_HOURS * HOUR_MS;
 
-const ENV = { ADMIN_EMAILS: "admin@test.com", SETTLEMENT_HOLD_HOURS: "24" };
+const ENV = {
+  ADMIN_EMAILS: "admin@test.com",
+  SETTLEMENT_HOLD_HOURS: "24",
+  CONVEX_SITE_URL: "https://demo.convex.site",
+};
 
 interface LedgerSeed {
   creatorId: Id<"creators">;
@@ -446,7 +450,7 @@ describe("adminTelemetry.overview", () => {
         paymentsDriver: "simulated",
         connectEnabled: false,
         turnstileConfigured: true,
-        webhookUrl: "",
+        webhookUrl: "https://demo.convex.site/bachs/webhook",
       });
       expect(result.counts).toEqual({
         creatorsTotal: 3,
@@ -468,6 +472,7 @@ describe("adminTelemetry.overview", () => {
       expect(result.sampled).toEqual({
         creators: false,
         ledger: false,
+        platformLedger: false,
         donations: false,
         payouts: false,
         webhooks: false,
@@ -487,6 +492,15 @@ describe("adminTelemetry.overview", () => {
         platformGrossFees: 670,
         platformFeeReversals: 100,
         platformNetRevenue: 570,
+        platformTipsGross: 0,
+        platformTipReversals: 0,
+        platformTipsNet: 0,
+        processingFeeExpenses: 0,
+        payoutFeesCollected: 0,
+        payoutFeeExpenses: 0,
+        payoutFeesNet: 0,
+        platformAdjustments: 0,
+        platformTotalNet: 570,
         grossDonationVolume: 12_400,
         refundedVolume: 500,
         paidOutLifetime: 3_000,
@@ -506,6 +520,15 @@ describe("adminTelemetry.overview", () => {
         platformGrossFees: 300,
         platformFeeReversals: 50,
         platformNetRevenue: 250,
+        platformTipsGross: 0,
+        platformTipReversals: 0,
+        platformTipsNet: 0,
+        processingFeeExpenses: 0,
+        payoutFeesCollected: 0,
+        payoutFeeExpenses: 0,
+        payoutFeesNet: 0,
+        platformAdjustments: 0,
+        platformTotalNet: 250,
         grossDonationVolume: 6_000,
         refundedVolume: 1_000,
         paidOutLifetime: 1_000,
@@ -515,6 +538,56 @@ describe("adminTelemetry.overview", () => {
 
       // Never combine currencies into one grand total.
       expect(result.currencies).toHaveLength(2);
+    });
+  });
+
+  it("reports tips, processing costs, payout fees and platform adjustments", async () => {
+    const t = makeTest();
+    const adminId = await makeAdmin(t);
+    const userId = await makeUser(t, "platform@test.com", "Platform Creator");
+    await makeCreator(t, userId, { username: "platform", currency: "NGN" });
+    const now = Date.now();
+
+    await t.run(async (ctx) => {
+      const rows: Array<{
+        type: Doc<"platformLedgerEntries">["type"];
+        amount: number;
+      }> = [
+        { type: "platform_tip", amount: 5_000 },
+        { type: "platform_tip_refund", amount: -1_000 },
+        { type: "processing_fee_expense", amount: -2_000 },
+        { type: "payout_fee_collected", amount: 5_000 },
+        { type: "payout_fee_expense", amount: -5_000 },
+        { type: "adjustment", amount: -700 },
+      ];
+      for (const [index, row] of rows.entries()) {
+        await ctx.db.insert("platformLedgerEntries", {
+          ...row,
+          currency: "NGN",
+          createdAt: now + index,
+        });
+      }
+    });
+
+    await withEnv(ENV, async () => {
+      const result = await forUser(t, adminId).query(
+        api.adminTelemetry.overview,
+        {},
+      );
+      const ngn = result.currencies.find((row) => row.currency === "NGN");
+      expect(ngn).toMatchObject({
+        platformNetRevenue: 0,
+        platformTipsGross: 5_000,
+        platformTipReversals: 1_000,
+        platformTipsNet: 4_000,
+        processingFeeExpenses: 2_000,
+        payoutFeesCollected: 5_000,
+        payoutFeeExpenses: 5_000,
+        payoutFeesNet: 0,
+        platformAdjustments: -700,
+        // 4,000 tips - 2,000 processing - 700 adjustment.
+        platformTotalNet: 1_300,
+      });
     });
   });
 

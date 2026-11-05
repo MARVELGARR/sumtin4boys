@@ -156,6 +156,14 @@ describe("payouts.request", () => {
     expect(balances.processingFees).toBe(5_000);
     expect(balances.connectMode).toBe(false);
     expect(balances.hasOpenPayout).toBe(true);
+    // The five balance cards shown by the dashboard must add up exactly.
+    expect(
+      balances.pending +
+        balances.available +
+        balances.processingTotal +
+        balances.paidOut +
+        balances.payoutFeesPaid,
+    ).toBe(balances.netEarned);
 
     const page = await forUser(t, userId).query(api.payouts.listMine, {
       paginationOpts: { numItems: 10, cursor: null },
@@ -353,8 +361,16 @@ describe("admin payout resolution", () => {
         {},
       );
       expect(balances.netEarned).toBe(380_000);
+      expect(balances.payoutFeesPaid).toBe(5_000);
       expect(balances.processing).toBe(0);
       expect(balances.processingFees).toBe(0);
+      expect(
+        balances.pending +
+          balances.available +
+          balances.processingTotal +
+          balances.paidOut +
+          balances.payoutFeesPaid,
+      ).toBe(balances.netEarned);
       expect(
         await t.run(async (ctx) => ctx.db.get("creators", creatorId)),
       ).toMatchObject({ balancePayoutFeesPaid: 5_000 });

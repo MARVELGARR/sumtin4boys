@@ -40,11 +40,18 @@ describe("platform pricing", () => {
     expect(minPayoutMinorFor("USD")).toBe(1_000);
   });
 
-  it("computes the largest net payout after the fee is added on top", () => {
+  it("computes the exact largest net payout after the fee is added on top", () => {
     expect(maxPayoutNet(100_000, "NGN")).toBe(95_000);
     expect(maxPayoutNet(380_000, "NGN")).toBe(375_000);
     expect(maxPayoutNet(1_000, "USD")).toBe(900); // below the $10 minimum
     expect(maxPayoutNet(1_200, "USD")).toBe(1_100);
+    // Below $100, 1% is less than the $1 minimum, so the fee stays at $1.
+    expect(maxPayoutNet(10_000, "USD")).toBe(9_900);
+    // Above the minimum-fee band, rounding still leaves an exact maximum:
+    // 19,802 + round(1%) = 20,000, while 19,803 + 198 = 20,001.
+    expect(maxPayoutNet(20_000, "USD")).toBe(19_802);
+    // Default 0.3% fee: 99,701 + round(299.103) = 100,000.
+    expect(maxPayoutNet(100_000, "GHS")).toBe(99_701);
     expect(maxPayoutNet(0, "NGN")).toBe(0);
   });
 });

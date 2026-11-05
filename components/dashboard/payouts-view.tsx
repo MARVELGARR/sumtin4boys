@@ -92,9 +92,15 @@ function BalanceCards({ balances }: { balances: Balances }) {
       hint: "After any pending fees or refund clawbacks",
     },
     {
-      label: "Available to withdraw",
-      value: balances.withdrawable,
-      hint: "After open payout reservations and pending deductions",
+      label: "Available (settled)",
+      value: balances.available,
+      hint:
+        balances.withdrawable === balances.available
+          ? "Ready to withdraw"
+          : `Withdrawable now: ${formatMoney(
+              balances.withdrawable,
+              balances.currency,
+            )} after pending deductions`,
     },
     {
       label: "Processing (reserved)",
@@ -109,11 +115,16 @@ function BalanceCards({ balances }: { balances: Balances }) {
       value: balances.paidOut,
       hint: "Net amount already sent to you",
     },
+    {
+      label: "Payout fees paid",
+      value: balances.payoutFeesPaid,
+      hint: "Lifetime withdrawal fees charged",
+    },
   ];
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {cards.map((card) => (
           <Card key={card.label} size="sm">
             <CardHeader>
@@ -128,7 +139,12 @@ function BalanceCards({ balances }: { balances: Balances }) {
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
         Minimum: {formatMoney(balances.minimum, balances.currency)} · Payout fee
-        is added on top.
+        is added on top. Pending + available + processing + paid out + payout
+        fees paid = lifetime net earned:{" "}
+        <span className="font-medium text-foreground tabular-nums">
+          {formatMoney(balances.netEarned, balances.currency)}
+        </span>
+        .
       </p>
     </div>
   );

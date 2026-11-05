@@ -144,8 +144,7 @@ export function PayoutRequestForm({
           </div>
           <FieldDescription>
             Minimum: {formatMoney(minimum, currency)} · Available:{" "}
-            {formatMoney(available, currency)} · Bachs&apos; payout fee is added
-            on top.
+            {formatMoney(available, currency)} · Payout fee is added on top.
           </FieldDescription>
           {parsed !== null && parsed > 0 ? (
             <p className="text-xs text-muted-foreground">

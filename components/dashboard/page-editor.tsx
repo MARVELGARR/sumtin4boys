@@ -61,6 +61,8 @@ import {
 import {
   maxBreadPriceMinorFor,
   minBreadPriceMinorFor,
+  platformFeeFor,
+  pricingPolicy,
 } from "@/convex/lib/pricing";
 
 /** Shape of `updateProfile`'s args, built incrementally from changed fields. */
@@ -114,6 +116,23 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingAvatar, setRemovingAvatar] = useState(false);
+
+  // Show the real creator cut, including when the minimum fee makes the
+  // effective rate higher than the headline percentage (for example ₦20 on a
+  // ₦100 bread is 20%, not 5%).
+  const parsedBreadPrice = parseMajorAmount(breadPriceInput, currency);
+  const breadFeePolicy = pricingPolicy(currency);
+  const breadFeePreview =
+    parsedBreadPrice !== null && parsedBreadPrice > 0
+      ? (() => {
+          const fee = platformFeeFor(parsedBreadPrice, currency);
+          return {
+            amount: parsedBreadPrice,
+            fee,
+            effectivePercent: (fee / parsedBreadPrice) * 100,
+          };
+        })()
+      : null;
 
   async function handleAvatarChange(
     event: React.ChangeEvent<HTMLInputElement>,
@@ -384,6 +403,26 @@ function PageEditorForm({ creator }: { creator: MyCreator }) {
                 <FieldDescription>
                   {formatMoney(minBreadPriceMinorFor(currency), currency)} –{" "}
                   {formatMoney(maxBreadPriceMinorFor(currency), currency)}
+                  {breadFeePreview ? (
+                    <span className="mt-1 block">
+                      Platform fee: {breadFeePolicy.platformFeeBps / 100}%
+                      {breadFeePolicy.platformFeeMinMinor > 0
+                        ? ` (minimum ${formatMoney(
+                            breadFeePolicy.platformFeeMinMinor,
+                            currency,
+                          )})`
+                        : ""}
+                      . At {formatMoney(breadFeePreview.amount, currency)}:{" "}
+                      {formatMoney(breadFeePreview.fee, currency)} fee (
+                      {Math.round(breadFeePreview.effectivePercent * 10) / 10}
+                      %), you keep{" "}
+                      {formatMoney(
+                        breadFeePreview.amount - breadFeePreview.fee,
+                        currency,
+                      )}
+                      .
+                    </span>
+                  ) : null}
                 </FieldDescription>
                 <FieldError>{errors.breadPrice}</FieldError>
               </Field>

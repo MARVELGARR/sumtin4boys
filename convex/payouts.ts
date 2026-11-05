@@ -172,6 +172,8 @@ export const getBalances = query({
     processingTotal: v.number(),
     /** Lifetime net received from paid payouts. */
     paidOut: v.number(),
+    /** Lifetime payout fees charged on successful withdrawals. */
+    payoutFeesPaid: v.number(),
     /** Lifetime donation earnings after platform fees, before payout fees. */
     netEarned: v.number(),
     minimum: v.number(),
@@ -212,6 +214,7 @@ export const getBalances = query({
       processingFees,
       processingTotal,
       paidOut: creator.balancePaidOut,
+      payoutFeesPaid: creator.balancePayoutFeesPaid ?? 0,
       netEarned,
       minimum: minPayoutMinor(creator.currency),
       connectMode: connectEnabled(),

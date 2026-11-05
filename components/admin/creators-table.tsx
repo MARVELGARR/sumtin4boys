@@ -395,9 +395,12 @@ function CreatorRowItem({
         <div className="font-medium tabular-nums">
           {formatMoney(creator.totalRaised, creator.currency)}
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div
+          className="text-xs text-muted-foreground"
+          title="Successful paid breads, not unique people"
+        >
           {creator.totalSupporters.toLocaleString()}{" "}
-          {creator.totalSupporters === 1 ? "supporter" : "supporters"}
+          {creator.totalSupporters === 1 ? "paid support" : "paid supports"}
         </div>
       </TableCell>
       <TableCell className="text-right">

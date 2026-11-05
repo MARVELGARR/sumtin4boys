@@ -357,7 +357,8 @@ pending ──paid event──────────────► paid ─�
 
 - Payment, seller balance credit, and payout delivery are separate states. Payout uses the **creator's balance** and its **usable destination**.
 - The creator requests the **net amount they receive**. The provider fee is added on top and both are reserved atomically (`payout` ledger entry = `-(amount + fee)`). A failed payout releases the full reservation.
-- Show creators: pending (net), available, withdrawable, processing (net + fee), paid out (net), and net earned. Platform fees reduce earnings; payout fees do not.
+- Show creators: pending (net), available (settled), withdrawable, processing (net + fee), paid out (net), payout fees paid, and net earned. The five balance cards sum to net earned. Platform fees reduce earnings; payout fees are tracked separately and added back in that reconciliation.
+- A paid withdrawal charges the creator fee. Only `method: "bachs"` also writes a `payout_fee_expense` for the fee paid to the provider; a manual bank transfer records the collected fee without inventing a provider cost.
 - Persist an `Idempotency-Key` per payout request. Handle payout failure and retry paths explicitly.
 
 ---

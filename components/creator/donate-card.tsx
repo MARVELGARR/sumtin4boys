@@ -31,7 +31,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { TurnstileWidget } from "@/components/creator/turnstile-widget";
-import { computeDonationPricing } from "@/convex/lib/pricing";
+import { computeDonationPricing, pricingPolicy } from "@/convex/lib/pricing";
 import {
   MAX_QUANTITY,
   MESSAGE_MAX_LENGTH,
@@ -131,6 +131,21 @@ export function DonateCard({
   const breadSubtotal = breadPrice * quantity;
   const pricing = computeDonationPricing(breadSubtotal, currency, tipBps);
   const total = pricing.totalCharged;
+  const feePolicy = pricingPolicy(currency);
+  const nominalFeePercent = feePolicy.platformFeeBps / 100;
+  const effectiveFeePercent =
+    breadSubtotal > 0 ? (pricing.platformFee / breadSubtotal) * 100 : 0;
+  const effectiveFeeLabel = `${Math.round(effectiveFeePercent * 10) / 10}%`;
+  const minimumFeeApplies =
+    feePolicy.platformFeeMinMinor > 0 &&
+    pricing.platformFee >
+      Math.round((breadSubtotal * feePolicy.platformFeeBps) / 10_000);
+  const feeDisclosure = minimumFeeApplies
+    ? `${nominalFeePercent}% platform fee (${formatMoney(
+        feePolicy.platformFeeMinMinor,
+        currency,
+      )} minimum — ${effectiveFeeLabel} on this order)`
+    : `${nominalFeePercent}% platform fee`;
 
   const handleTurnstileToken = useCallback((token: string | null) => {
     setTurnstileToken(token);
@@ -509,6 +524,13 @@ export function DonateCard({
               {coverProcessingFee
                 ? "Bachs adds its actual processing fee on top at checkout."
                 : "Bachs' processing fee is deducted from the creator's proceeds."}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {displayName} receives{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {formatMoney(pricing.netAmount, currency)}
+              </span>{" "}
+              after the {feeDisclosure}.
             </p>
           </div>
 

@@ -530,7 +530,7 @@ function ConfigCard({ overview }: { overview: Overview }) {
           label="Platform fee (NGN)"
           value={`${config.platformFeeBps.toLocaleString()} bps (${percentFormatter.format(
             config.platformFeeBps / 10_000,
-          )}) · USD 10%`}
+          )}), min ₦20 · USD 10%, min $1`}
           tone="neutral"
         />
         <ConfigRow

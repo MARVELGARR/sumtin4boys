@@ -53,7 +53,7 @@ const perks = [
     icon: SparkBuddy,
     title: "Zero monthly fee",
     description:
-      "Free to create your page, set your bread price, and share your link. No subscription. Na your money.",
+      "Free to create your page, set your bread price, and share your link. No subscription — we charge 5% (min ₦20) only when support comes in.",
   },
   {
     icon: SunBuddy,

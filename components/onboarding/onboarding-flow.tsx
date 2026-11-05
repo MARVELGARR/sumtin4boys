@@ -64,6 +64,8 @@ import {
 import {
   maxBreadPriceMinorFor,
   minBreadPriceMinorFor,
+  platformFeeFor,
+  pricingPolicy,
 } from "@/convex/lib/pricing";
 import { cn } from "@/lib/utils";
 
@@ -501,6 +503,22 @@ function ProfileStep({
   const [priceError, setPriceError] = useState<string | null>(null);
   const [goalError, setGoalError] = useState<string | null>(null);
 
+  const parsedPrice = parseMajorAmount(price, currency);
+  const priceFeePolicy = pricingPolicy(currency);
+  const priceFeePreview =
+    parsedPrice !== null &&
+    parsedPrice >= minBreadPriceMinorFor(currency) &&
+    parsedPrice <= maxBreadPriceMinorFor(currency)
+      ? (() => {
+          const fee = platformFeeFor(parsedPrice, currency);
+          return {
+            amount: parsedPrice,
+            fee,
+            effectivePercent: (fee / parsedPrice) * 100,
+          };
+        })()
+      : null;
+
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
@@ -673,6 +691,27 @@ function ProfileStep({
                       At least{" "}
                       {formatMoney(minBreadPriceMinorFor(currency), currency)}{" "}
                       per bread.
+                      {priceFeePreview ? (
+                        <span className="mt-1 block">
+                          Platform fee: {priceFeePolicy.platformFeeBps / 100}%
+                          {priceFeePolicy.platformFeeMinMinor > 0
+                            ? ` (minimum ${formatMoney(
+                                priceFeePolicy.platformFeeMinMinor,
+                                currency,
+                              )})`
+                            : ""}
+                          . At {formatMoney(priceFeePreview.amount, currency)}:{" "}
+                          {formatMoney(priceFeePreview.fee, currency)} fee (
+                          {Math.round(priceFeePreview.effectivePercent * 10) /
+                            10}
+                          %), you keep{" "}
+                          {formatMoney(
+                            priceFeePreview.amount - priceFeePreview.fee,
+                            currency,
+                          )}
+                          .
+                        </span>
+                      ) : null}
                     </FieldDescription>
                   )}
                 </Field>

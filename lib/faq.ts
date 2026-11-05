@@ -32,7 +32,7 @@ export const HOME_FAQS: FaqItem[] = [
   },
   {
     q: "Are there any upfront or monthly fees to use anything4boys?",
-    a: "Zero. It is completely free to create your page, customise your profile, set goals, and share your link. There are no monthly subscription fees. We only apply standard payment processing fees when you actually receive support.",
+    a: "There is no charge to create your page and no monthly subscription. When you receive support, we charge a 5% platform fee with a ₦20 minimum. On a ₦100 bread, the minimum makes the fee ₦20 (20%); at ₦400 and above it is 5%. USD is 10% with a $1 minimum. Withdrawals also carry a payout fee: ₦50 flat for NGN, or USD 1% with a $1 minimum and $15 cap. The checkout and payout screens show the exact amounts before you confirm.",
   },
   {
     q: "Can supporters pay from outside Nigeria?",
@@ -56,7 +56,7 @@ export const SUPPORT_FAQS: FaqItem[] = [
   },
   {
     q: "What does anything4boys charge?",
-    a: "Creating a page is free, with no monthly subscription. A standard payment processing fee applies when support is received; the checkout amount is shown before the supporter pays. Creators see the net amount in their dashboard.",
+    a: "Creating a page is free, with no monthly subscription. When support comes in, we charge a 5% platform fee with a ₦20 minimum (USD: 10%, $1 minimum). On a ₦100 bread the minimum makes the fee ₦20 (20%); at ₦400 and above it is 5%. Withdrawals cost ₦50 flat for NGN (USD: 1%, $1 minimum, $15 cap). Checkout and payout screens show the exact amount before you confirm.",
   },
   {
     q: "Can supporters pay from outside Nigeria?",
