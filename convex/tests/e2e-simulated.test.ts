@@ -191,6 +191,102 @@ describe("simulated end-to-end donation", () => {
     expect(platform.find((entry) => entry.type === "platform_tip")?.amount).toBe(5_000);
   });
 
+  it("runs a full USD donation end to end with the USD fee split", async () => {
+    const t = makeTest();
+    const { userId } = await makeCreatorWithUser(t, {
+      username: "ada",
+      currency: "USD",
+      coffeePrice: 500, // $5 per bread — the USD minimum bread price
+    });
+
+    const result = await t.action(api.donations.createCheckout, checkoutArgs({
+      quantity: 2,
+      tipBps: 1_000, // 10% platform tip
+      coverProcessingFee: true,
+    }));
+    expect(result.status).toBe("redirect");
+    if (result.status !== "redirect") throw new Error("expected a redirect result");
+
+    const donation = await t.run(async (ctx) =>
+      ctx.db
+        .query("donations")
+        .withIndex("by_reference", (q) => q.eq("reference", result.reference))
+        .unique(),
+    );
+    expect(donation?.currency).toBe("USD");
+    expect(donation?.amount).toBe(1_000); // 2 × $5
+    expect(donation?.platformFee).toBe(100); // USD 10% — hits the $1 minimum exactly
+    expect(donation?.netAmount).toBe(900); // $9 to the creator
+    expect(donation?.platformTip).toBe(100);
+    expect(donation?.tipBps).toBe(1_000);
+    expect(donation?.totalCharged).toBe(1_100); // $11 = $10 bread + $1 tip
+    expect(donation?.coverProcessingFee).toBe(true);
+
+    const completion = await t.mutation(api.bachs.simulated.completeSimulatedCheckout, {
+      reference: result.reference,
+      outcome: "paid",
+    });
+    expect(completion).toEqual({ ok: true, outcome: "processed" });
+
+    const paid = await t.query(api.donations.getByReference, { reference: result.reference });
+    expect(paid?.status).toBe("paid");
+    expect(paid?.currency).toBe("USD");
+    expect(paid?.amount).toBe(1_000);
+
+    // Every ledger row for this creator is denominated in USD.
+    const ledger = await t.run(async (ctx) => ctx.db.query("ledgerEntries").collect());
+    expect(ledger).toHaveLength(2);
+    for (const entry of ledger) expect(entry.currency).toBe("USD");
+    expect(ledger.reduce((sum, entry) => sum + entry.amount, 0)).toBe(900);
+
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    const feeEntry = platform.find((entry) => entry.type === "platform_fee");
+    expect(feeEntry?.amount).toBe(100);
+    expect(feeEntry?.currency).toBe("USD");
+    const tipEntry = platform.find((entry) => entry.type === "platform_tip");
+    expect(tipEntry?.amount).toBe(100);
+    expect(tipEntry?.currency).toBe("USD");
+
+    const stats = await forUser(t, userId).query(api.donations.getMyStats, {});
+    expect(stats.currency).toBe("USD");
+    expect(stats.totals).toEqual({ raised: 1_000, paidSupports: 1 });
+    expect(stats.balances).toEqual({ pending: 900, available: 0, paidOut: 0 });
+
+    const publicPage = await t.query(api.creators.getByUsername, { username: "ada" });
+    expect(publicPage.creator?.currency).toBe("USD");
+    expect(publicPage.creator?.totalRaised).toBe(1_000);
+  });
+
+  it("sends Bachs USD decimal strings for a USD creator's checkout payload", async () => {
+    const t = makeTest();
+    await makeCreatorWithUser(t, {
+      username: "ada",
+      currency: "USD",
+      coffeePrice: 500,
+    });
+
+    const started = await t.mutation(internal.donations.startCheckout, {
+      attemptId: newRequestId(),
+      username: "ada",
+      quantity: 2,
+      supporterName: "Sam Supporter",
+      supporterEmail: "usd-sam@test.com",
+      isPrivate: false,
+      tipBps: 1_000,
+      coverProcessingFee: true,
+    });
+
+    expect(started.payload.currency).toBe("USD");
+    expect(started.payload.amount).toBe("10.00"); // bread subtotal in dollars
+    expect(started.payload.chargeAmount).toBe("11.00"); // + $1 tip
+    expect(started.payload.platformFee).toBe("2.00"); // $1 platform fee + $1 tip
+    expect(started.payload.platformTip).toBe("1.00");
+    expect(started.payload.coverProcessingFee).toBe(true);
+    expect(started.payload.idempotencyKey).toBe(`checkout_${started.reference}`);
+  });
+
   it("marks failed and expired simulated checkouts unresolved", async () => {
     const t = makeTest();
     await makeCreatorWithUser(t, { username: "ada", coffeePrice: 50_000 });

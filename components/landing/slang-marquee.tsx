@@ -18,7 +18,7 @@ export function SlangMarquee() {
   return (
     <section
       aria-label="Nigerian slang"
-      className="relative overflow-hidden border-y-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 py-3"
+      className="relative overflow-hidden border-y border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 py-3"
     >
       <div className="animate-marquee flex w-max">
         {[0, 1].map((run) => (
@@ -41,7 +41,6 @@ export function SlangMarquee() {
                 >
                   <Icon size={20} />
                   {phrase}
-                  <span className="text-[var(--toy-leaf)]">✦</span>
                 </span>
               );
             })}

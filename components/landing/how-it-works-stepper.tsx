@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { AnkaraPattern } from "@/components/brand/ankara-pattern";
 import {
   CheckBuddy,
   CoinBuddy,
   DrumBuddy,
-  SparkBuddy,
   SunBuddy,
 } from "@/components/brand/toy-icons";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 
 const STEPS = [
   {
@@ -66,16 +63,15 @@ export function HowItWorksStepper() {
   const PreviewIcon = PREVIEW_ICONS[activeStep] ?? SunBuddy;
 
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
-      <div className="mb-12 flex flex-col items-center gap-3 text-center">
-        <Badge
-          variant="secondary"
-          className="h-auto gap-1.5 border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/30 px-3.5 py-1 text-xs font-semibold text-foreground"
-        >
-          <SparkBuddy className="size-4" />
+    <section
+      id="how-it-works"
+      className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-14 sm:py-20"
+    >
+      <div className="flex flex-col items-center gap-3 text-center">
+        <p className="font-toy text-xs font-semibold tracking-[0.18em] text-primary uppercase">
           No long talk · 3 steps
-        </Badge>
-        <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl">
+        </p>
+        <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           Three steps to your first bread
         </h2>
         <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
@@ -84,7 +80,7 @@ export function HowItWorksStepper() {
         </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
+      <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-center">
         {/* Step selector buttons */}
         <div className="space-y-3 lg:col-span-6">
           {STEPS.map((s, index) => {
@@ -96,16 +92,16 @@ export function HowItWorksStepper() {
                 type="button"
                 onClick={() => setActiveStep(index)}
                 aria-pressed={isActive}
-                className={`flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-all duration-200 sm:p-5 ${
+                className={`flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-colors sm:p-5 ${
                   isActive
-                    ? "border-primary bg-card shadow-lg shadow-primary/5 ring-1 ring-primary/20"
-                    : "border-[var(--toy-ink)]/10 bg-card/40 hover:border-[var(--toy-ink)]/20 hover:bg-card"
+                    ? "border-primary bg-card"
+                    : "border-[var(--toy-ink)]/10 bg-background hover:border-[var(--toy-ink)]/30 hover:bg-card"
                 }`}
               >
                 <div
-                  className={`flex size-11 shrink-0 items-center justify-center rounded-xl border-2 transition-colors ${
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                     isActive
-                      ? "border-primary/30 bg-[var(--toy-ochre)]/45"
+                      ? "border-primary/30 bg-[var(--toy-ochre)]/25"
                       : "border-[var(--toy-ink)]/10 bg-muted/60"
                   }`}
                 >
@@ -113,12 +109,12 @@ export function HowItWorksStepper() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs font-bold text-primary">
                       STEP {s.step}
                     </span>
                     {isActive ? (
-                      <span className="text-[10px] font-semibold tracking-wider text-primary uppercase">
+                      <span className="text-[11px] font-semibold tracking-wide text-primary uppercase">
                         Viewing
                       </span>
                     ) : null}
@@ -137,47 +133,44 @@ export function HowItWorksStepper() {
 
         {/* Dynamic visual mockup preview */}
         <div className="lg:col-span-6">
-          <Card className="toy-card relative overflow-hidden bg-gradient-to-br from-card via-card/95 to-[var(--toy-ochre)]/15 p-6 shadow-xl shadow-primary/5 sm:p-8">
-            <AnkaraPattern id="how-it-works-preview" opacity={0.1} />
-            <div className="relative">
-              <div className="flex items-center justify-between border-b border-[var(--toy-ink)]/10 pb-4">
-                <div className="flex items-center gap-2">
-                  <span className="size-3 rounded-full bg-[var(--toy-coral)]" />
-                  <span className="size-3 rounded-full bg-[var(--toy-ochre)]" />
-                  <span className="size-3 rounded-full bg-[var(--toy-leaf)]" />
-                </div>
-                <Badge
-                  variant="outline"
-                  className="h-auto border-[var(--toy-ink)]/10 bg-background/60 font-mono text-xs text-foreground"
-                >
-                  {current.preview.tag}
-                </Badge>
+          <div className="toy-card overflow-hidden rounded-3xl bg-card p-6 sm:p-8">
+            <div className="flex items-center justify-between border-b border-[var(--toy-ink)]/10 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="size-3 rounded-full bg-[var(--toy-coral)]" />
+                <span className="size-3 rounded-full bg-[var(--toy-ochre)]" />
+                <span className="size-3 rounded-full bg-[var(--toy-leaf)]" />
+              </div>
+              <Badge
+                variant="outline"
+                className="h-auto border-[var(--toy-ink)]/10 bg-background font-mono text-xs text-foreground"
+              >
+                {current.preview.tag}
+              </Badge>
+            </div>
+
+            <div className="space-y-4 py-8">
+              <div className="flex size-16 items-center justify-center rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
+                <PreviewIcon size={40} />
               </div>
 
-              <div className="space-y-4 py-8">
-                <div className="flex size-16 items-center justify-center rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 shadow-inner">
-                  <PreviewIcon size={40} />
-                </div>
+              <div>
+                <h4 className="font-toy text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                  {current.preview.headline}
+                </h4>
+                <p className="mt-1 text-sm font-medium text-primary">
+                  {current.preview.body}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {current.preview.detail}
+                </p>
+              </div>
 
-                <div>
-                  <h4 className="font-toy text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                    {current.preview.headline}
-                  </h4>
-                  <p className="mt-1 text-sm font-medium text-primary">
-                    {current.preview.body}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    {current.preview.detail}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 pt-4 text-xs text-muted-foreground">
-                  <CheckBuddy className="size-5 shrink-0" />
-                  <span>Step {current.step} automated &amp; no wahala.</span>
-                </div>
+              <div className="flex items-center gap-2 pt-4 text-xs text-muted-foreground">
+                <CheckBuddy className="size-5 shrink-0" />
+                <span>Step {current.step} automated &amp; no wahala.</span>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     </section>

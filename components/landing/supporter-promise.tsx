@@ -1,8 +1,6 @@
-import { AnkaraPattern } from "@/components/brand/ankara-pattern";
 import {
   BreadBuddy,
   CoinBuddy,
-  HeartBuddy,
   MessageBuddy,
   SunBuddy,
   ToySticker,
@@ -31,24 +29,17 @@ const STEPS = [
 /** Supporter-first section that explains "tearing small bread" in context. */
 export function SupporterPromise() {
   return (
-    <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
-      <div className="toy-card relative overflow-hidden rounded-[2rem] bg-card p-6 sm:p-10">
-        <AnkaraPattern id="supporter-promise" opacity={0.13} />
-
-        <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:py-20">
+      <div className="toy-card relative rounded-3xl bg-card p-6 sm:p-10">
+        <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div>
-            <Badge
-              variant="secondary"
-              className="mb-3 h-auto gap-1.5 border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/30 px-3 py-1 text-[11px] font-semibold text-foreground"
-            >
-              <HeartBuddy size={16} />
+            <p className="font-toy text-xs font-semibold tracking-[0.18em] text-primary uppercase">
               Supporter side
-            </Badge>
-
-            <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl">
+            </p>
+            <h2 className="mt-3 font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl">
               Anything for the boys?
             </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
               You don enjoy the skit? The recipe? The podcast? Tear small
               bread. Na the small small support dey keep the work going — and
               the kind words dey make the late nights worth it.
@@ -58,17 +49,17 @@ export function SupporterPromise() {
               {STEPS.map((step, index) => (
                 <div
                   key={step.title}
-                  className="rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-background/80 p-4"
+                  className="rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-background p-4"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-[var(--toy-ochre)]/35">
+                    <span className="flex size-9 items-center justify-center rounded-lg bg-[var(--toy-ochre)]/25">
                       <step.icon size={24} />
                     </span>
-                    <span className="font-mono text-[10px] font-bold text-[var(--toy-leaf)]">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground">
                       0{index + 1}
                     </span>
                   </div>
-                  <h3 className="mt-3 font-toy text-base font-semibold">
+                  <h3 className="mt-3 font-toy text-base font-bold">
                     {step.title}
                   </h3>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -79,7 +70,11 @@ export function SupporterPromise() {
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" className="h-11 px-5 font-semibold">
+              <Button
+                asChild
+                size="lg"
+                className="h-11 px-6 text-sm font-semibold"
+              >
                 <a href="#demo">See the supporter flow</a>
               </Button>
               <span className="text-xs text-muted-foreground">
@@ -94,7 +89,7 @@ export function SupporterPromise() {
           </div>
 
           <div className="relative mx-auto w-full max-w-md">
-            <div className="toy-card relative rotate-2 rounded-3xl bg-[var(--toy-cream)] p-5 sm:p-6">
+            <div className="toy-card rounded-2xl bg-[var(--toy-cream)] p-5 sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <ToySticker tone="ochre" className="size-14 p-0">
@@ -107,7 +102,7 @@ export function SupporterPromise() {
                 </div>
                 <Badge
                   variant="outline"
-                  className="border-[var(--toy-ink)]/15 bg-background/70 text-[10px] font-semibold"
+                  className="border-[var(--toy-ink)]/15 text-[11px] font-semibold"
                 >
                   Kind word
                 </Badge>
@@ -123,19 +118,10 @@ export function SupporterPromise() {
                 <span>just now</span>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-[var(--toy-ink)]/10 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-[var(--toy-ink)]/10 bg-background px-3 py-2 text-xs text-muted-foreground">
                 <CoinBuddy size={20} />
                 Secure checkout · no account needed
               </div>
-            </div>
-
-            <div className="absolute -bottom-5 -left-3 rotate-[-6deg] sm:-left-5">
-              <ToySticker tone="ochre" className="px-3 py-2">
-                <SunBuddy size={26} />
-                <span className="font-toy text-xs font-semibold">
-                  Small small dey go far
-                </span>
-              </ToySticker>
             </div>
           </div>
         </div>

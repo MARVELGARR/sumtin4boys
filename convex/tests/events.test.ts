@@ -660,3 +660,210 @@ describe("events pipeline — refunds", () => {
     expect(await listLedger(t, creatorId)).toHaveLength(0);
   });
 });
+
+describe("events pipeline — USD donations", () => {
+  /** A USD creator whose smallest ($5) bread is what the supporter bought. */
+  async function usdCreator(t: Test, coffeePrice = 500) {
+    const { creatorId } = await makeCreatorWithUser(t, {
+      username: "ada",
+      currency: "USD",
+      coffeePrice,
+    });
+    return creatorId;
+  }
+
+  it("splits a USD donation with the 10%/$1 policy and books USD ledger entries", async () => {
+    const t = makeTest();
+    const creatorId = await usdCreator(t);
+    const amount = 500; // $5 — the USD minimum bread, so the $1 fee minimum binds
+    const checkoutId = eventId("ch");
+    const chargeId = eventId("py_ch");
+    // `currency` is omitted on purpose: the seed helper reads it from the
+    // creator, exactly like `donations.startCheckout`.
+    const { donationId, platformFee, netAmount, currency } = await seedDonation(t, {
+      creatorId,
+      amount,
+      checkoutId,
+    });
+
+    expect(currency).toBe("USD");
+    expect(platformFee).toBe(100); // $1 minimum beats 10% of $5 ($0.50)
+    expect(netAmount).toBe(400); // 20% effective on a $5 bread
+
+    const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: Date.now(),
+      source: "webhook",
+      checkout: paidCheckoutState({
+        checkoutId,
+        amountMinor: amount,
+        currency: "USD",
+        chargeId,
+      }),
+    });
+    expect(result.outcome).toBe("processed");
+
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.currency).toBe("USD");
+    expect(donation?.platformFee).toBe(100);
+    expect(donation?.netAmount).toBe(400);
+    expect(donation?.status).toBe("paid");
+
+    const entries = await listLedger(t, creatorId);
+    expect(entries).toHaveLength(2);
+    for (const entry of entries) expect(entry.currency).toBe("USD");
+    expect(entries.find((entry) => entry.type === "donation")?.amount).toBe(500);
+    expect(entries.find((entry) => entry.type === "fee")?.amount).toBe(-100);
+
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 400,
+      available: 0,
+      paidOut: 0,
+    });
+    const creator = await getCreator(t, creatorId);
+    expect(creator.totalRaised).toBe(500);
+    expect(creator.totalSupporters).toBe(1);
+
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    const feeEntry = platform.find((entry) => entry.type === "platform_fee");
+    expect(feeEntry?.amount).toBe(100);
+    expect(feeEntry?.currency).toBe("USD");
+  });
+
+  it("accepts a USD total that includes the supporter-covered processing fee", async () => {
+    const t = makeTest();
+    const creatorId = await usdCreator(t, 5_000); // $50 bread
+    const amount = 5_000;
+    const checkoutId = eventId("ch");
+    const chargeId = eventId("py_ch");
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+    await t.run(async (ctx) =>
+      ctx.db.patch("donations", donationId, {
+        platformTip: 500,
+        tipBps: 1_000,
+        totalCharged: 5_500,
+        coverProcessingFee: true,
+      }),
+    );
+
+    // Bread $50 + tip $5 + Bachs' $1.75 processing fee = $56.75 charged.
+    const completed = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: {
+        ...paidCheckoutState({
+          checkoutId,
+          amountMinor: 5_675,
+          currency: "USD",
+          chargeId,
+        }),
+        processingFee: "1.75",
+        feeBearer: "customer" as const,
+      },
+    });
+    expect(completed.outcome).toBe("processed");
+
+    // The fee is pass-through: the creator still nets bread minus platform fee.
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 4_500,
+      available: 0,
+      paidOut: 0,
+    });
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    expect(platform.find((entry) => entry.type === "platform_fee")?.amount).toBe(500);
+    expect(platform.find((entry) => entry.type === "platform_fee")?.currency).toBe("USD");
+    expect(platform.find((entry) => entry.type === "platform_tip")?.amount).toBe(500);
+    // The supporter's covered processing fee is never booked as platform revenue.
+    expect(platform.find((entry) => entry.type === "processing_fee_expense")).toBeUndefined();
+  });
+
+  it("parks a USD completion when the provider reports the wrong currency", async () => {
+    const t = makeTest();
+    const creatorId = await usdCreator(t);
+    const amount = 500;
+    const checkoutId = eventId("ch");
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+
+    const result = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: Date.now(),
+      source: "webhook",
+      checkout: paidCheckoutState({
+        checkoutId,
+        amountMinor: amount,
+        currency: "NGN", // provider disagrees with the donation currency
+        chargeId: "py_ch_fx",
+      }),
+    });
+
+    expect(result.outcome).toBe("mismatch");
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.status).toBe("pending");
+    expect(await listLedger(t, creatorId)).toHaveLength(0);
+  });
+
+  it("reverses a USD refund in USD, including the USD platform fee", async () => {
+    const t = makeTest();
+    const creatorId = await usdCreator(t);
+    const amount = 500;
+    const checkoutId = eventId("ch");
+    const chargeId = eventId("py_ch");
+    const { donationId } = await seedDonation(t, { creatorId, amount, checkoutId });
+
+    const completed = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt"),
+      eventType: "checkout.completed",
+      eventCreatedAt: 1_000,
+      source: "webhook",
+      checkout: paidCheckoutState({
+        checkoutId,
+        amountMinor: amount,
+        currency: "USD",
+        chargeId,
+      }),
+    });
+    expect(completed.outcome).toBe("processed");
+
+    const refunded = await t.mutation(internal.bachs.events.processCheckoutEvent, {
+      eventId: eventId("evt_refund"),
+      eventType: "refund.paid",
+      eventCreatedAt: 2_000,
+      source: "webhook",
+      refund: { chargeId, refundedAmount: "5.00" },
+    });
+    expect(refunded.outcome).toBe("processed");
+
+    const donation = await t.run(async (ctx) => ctx.db.get("donations", donationId));
+    expect(donation?.status).toBe("refunded");
+    expect(donation?.currency).toBe("USD");
+
+    const entries = await listLedger(t, creatorId);
+    expect(entries).toHaveLength(4);
+    for (const entry of entries) expect(entry.currency).toBe("USD");
+    const byType = new Map(entries.map((entry) => [entry.type, entry]));
+    expect(byType.get("refund")?.amount).toBe(-500);
+    expect(byType.get("fee_reversal")?.amount).toBe(100);
+    for (const entry of entries) expect(entry.settlementStatus).toBe("settled");
+
+    const platform = await t.run(async (ctx) =>
+      ctx.db.query("platformLedgerEntries").collect(),
+    );
+    const feeRefund = platform.find((entry) => entry.type === "platform_fee_refund");
+    expect(feeRefund?.amount).toBe(-100);
+    expect(feeRefund?.currency).toBe("USD");
+
+    expect(await getBalances(t, creatorId)).toEqual({
+      pending: 0,
+      available: 0,
+      paidOut: 0,
+    });
+  });
+});

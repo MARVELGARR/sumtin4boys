@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { AnkaraPattern } from "@/components/brand/ankara-pattern";
+import { Lock, RefreshCw } from "lucide-react";
 import {
+  BowlBuddy,
   BreadBuddy,
   CheckBuddy,
   CoinBuddy,
@@ -13,7 +13,6 @@ import {
 } from "@/components/brand/toy-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 type SimulatedDonation = {
@@ -32,7 +31,7 @@ const INITIAL_DONATIONS: SimulatedDonation[] = [
     name: "Tunde A.",
     amount: 3000,
     breads: 3,
-    message: "Take fuel for generator my bro! Your food videos dey make me hungry 😂",
+    message: "Take fuel for generator my bro! Your food videos dey make me hungry",
     timeAgo: "2m ago",
   },
   {
@@ -40,7 +39,7 @@ const INITIAL_DONATIONS: SimulatedDonation[] = [
     name: "Chidinma O.",
     amount: 5000,
     breads: 5,
-    message: "Keep inspiring us! Your weekly style drop is my small joy 🌟",
+    message: "Keep inspiring us! Your weekly style drop is my small joy",
     timeAgo: "14m ago",
   },
   {
@@ -48,17 +47,17 @@ const INITIAL_DONATIONS: SimulatedDonation[] = [
     name: "Naija_Anonymous",
     amount: 1000,
     breads: 1,
-    message: "Small bread for the late-night editing sessions 🍞",
+    message: "Small bread for the late-night editing sessions",
     timeAgo: "1h ago",
   },
 ];
 
 const QUICK_MESSAGES = [
-  "Take data 🌐",
-  "Fuel for the gen ⛽",
-  "For the late nights 🌙",
-  "You too much 🔥",
-  "Small something 💛",
+  "Take data",
+  "Fuel for the gen",
+  "For the late nights",
+  "You too much",
+  "Small something",
 ];
 
 export function InteractivePlayground() {
@@ -111,30 +110,27 @@ export function InteractivePlayground() {
   }
 
   return (
-    <section id="demo" className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
+    <section id="demo" className="mx-auto w-full max-w-6xl px-4 py-14 sm:py-20">
       {/* Section Header */}
-      <div className="mb-10 flex flex-col items-center gap-3 text-center">
-        <Badge
-          variant="secondary"
-          className="gap-1.5 border-primary/20 bg-primary/10 px-3.5 py-1 text-primary text-xs font-semibold tracking-wide"
-        >
-          <SparkBuddy className="size-4" />
+      <div className="flex flex-col items-center gap-3 text-center">
+        <p className="font-toy text-xs font-semibold tracking-[0.18em] text-primary uppercase">
           Try am yourself
-        </Badge>
-        <h2 className="font-toy text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+        </p>
+        <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           See how the boys do it
         </h2>
-        <p className="max-w-2xl text-base text-muted-foreground sm:text-lg">
+        <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
           Toggle between how your people tear small bread in three taps, and how
           creators collect earnings with bank withdrawals.
         </p>
 
         {/* Mode Switcher */}
-        <div className="mt-4 flex w-full max-w-xs items-center rounded-xl bg-muted p-1 border border-border/80">
+        <div className="mt-4 flex w-full max-w-xs items-center rounded-lg border border-border bg-muted p-1">
           <button
             type="button"
             onClick={() => setActiveTab("supporter")}
-            className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all sm:text-sm ${
+            aria-pressed={activeTab === "supporter"}
+            className={`flex-1 rounded-md px-3 py-2.5 text-xs font-semibold transition-colors sm:text-sm ${
               activeTab === "supporter"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -145,7 +141,8 @@ export function InteractivePlayground() {
           <button
             type="button"
             onClick={() => setActiveTab("creator")}
-            className={`flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all sm:text-sm ${
+            aria-pressed={activeTab === "creator"}
+            className={`flex-1 rounded-md px-3 py-2.5 text-xs font-semibold transition-colors sm:text-sm ${
               activeTab === "creator"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -158,43 +155,47 @@ export function InteractivePlayground() {
 
       {activeTab === "supporter" ? (
         /* SUPPORTER VIEW */
-        <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+        <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-start">
           {/* Support Form Mockup */}
           <div className="lg:col-span-7">
-            <Card className="toy-card relative overflow-hidden bg-card">
+            <div className="toy-card overflow-hidden rounded-3xl bg-card">
               {/* Creator header strip */}
-              <div className="relative overflow-hidden border-b border-[var(--toy-ink)]/10 bg-gradient-to-r from-[var(--toy-ochre)]/30 via-[var(--toy-ochre)]/10 to-transparent p-5 sm:p-6">
-                <AnkaraPattern id="demo-supporter" opacity={0.12} />
-                <div className="relative flex items-center gap-3.5">
-                  <div className="flex size-14 items-center justify-center rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/40 text-2xl">
-                    👩🏾‍🍳
+              <div className="border-b border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-5 sm:p-6">
+                <div className="flex items-center gap-3.5">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
+                    <BowlBuddy size={32} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-toy text-lg font-bold">Amara</h3>
                       <Badge
                         variant="outline"
-                        className="h-auto border-[var(--toy-ink)]/10 bg-background/70 text-[11px] font-normal text-foreground"
+                        className="h-auto border-[var(--toy-ink)]/10 text-[11px] font-normal text-foreground"
                       >
                         Creator
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">anything4boys.com/amara</p>
+                    <p className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                      anything4boys.com/amara
+                    </p>
                     <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                      Lagos food stories, market finds & everyday wahala on camera 🇳🇬
+                      Lagos food stories, market finds &amp; everyday wahala on
+                      camera
                     </p>
                   </div>
                 </div>
 
                 {/* Simulated Goal Progress */}
-                <div className="relative mt-4 rounded-xl border border-[var(--toy-ink)]/10 bg-background/80 p-3 backdrop-blur-sm">
-                  <div className="mb-1.5 flex justify-between text-xs font-medium">
-                    <span className="text-muted-foreground">Goal: new camera for my food series 🎥</span>
+                <div className="mt-4 rounded-lg border border-[var(--toy-ink)]/10 bg-background p-3">
+                  <div className="mb-1.5 flex justify-between gap-2 text-xs font-medium">
+                    <span className="text-muted-foreground">
+                      Goal: new camera for my food series
+                    </span>
                     <span className="font-semibold text-primary">
                       ₦{totalRaised.toLocaleString()} / ₦100,000
                     </span>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--toy-ochre)]/25">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div
                       className="h-full rounded-full bg-primary transition-all duration-700"
                       style={{ width: `${Math.min(100, (totalRaised / 100000) * 100)}%` }}
@@ -204,9 +205,9 @@ export function InteractivePlayground() {
               </div>
 
               {/* Tipping Controls */}
-              <CardContent className="p-5 sm:p-6 space-y-5">
+              <div className="space-y-5 p-5 sm:p-6">
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Choose bread amount
                   </label>
                   <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -221,10 +222,10 @@ export function InteractivePlayground() {
                         type="button"
                         onClick={() => setBreadCount(item.count)}
                         aria-pressed={breadCount === item.count}
-                        className={`flex touch-manipulation flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all sm:p-3 ${
+                        className={`flex touch-manipulation flex-col items-center justify-center rounded-lg border p-2.5 text-center transition-colors sm:p-3 ${
                           breadCount === item.count
-                            ? "border-primary bg-[var(--toy-ochre)]/25 ring-2 ring-primary/20"
-                            : "border-[var(--toy-ink)]/10 hover:border-[var(--toy-ink)]/20 hover:bg-muted/50"
+                            ? "border-primary bg-[var(--toy-ochre)]/25"
+                            : "border-[var(--toy-ink)]/10 hover:border-[var(--toy-ink)]/30 hover:bg-muted/50"
                         }`}
                       >
                         <BreadBuddy size={25} />
@@ -237,7 +238,7 @@ export function InteractivePlayground() {
 
                 {/* Quick Message Chips */}
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Quick message presets (tap to pick)
                   </label>
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -246,10 +247,11 @@ export function InteractivePlayground() {
                         key={msg}
                         type="button"
                         onClick={() => setSupporterMessage(msg)}
+                        aria-pressed={supporterMessage === msg}
                         className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                           supporterMessage === msg
                             ? "border-primary bg-primary font-medium text-primary-foreground"
-                            : "border-[var(--toy-ink)]/10 bg-background/60 text-muted-foreground hover:bg-muted"
+                            : "border-[var(--toy-ink)]/10 bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                       >
                         {msg}
@@ -260,7 +262,7 @@ export function InteractivePlayground() {
 
                 {/* Custom message field */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Your message
                   </label>
                   <Input
@@ -302,7 +304,7 @@ export function InteractivePlayground() {
                 <Button
                   onClick={handleSendBread}
                   size="lg"
-                  className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/25 transition-transform active:scale-[0.99]"
+                  className="h-11 w-full text-sm font-semibold"
                 >
                   <BreadBuddy size={21} />
                   <span>
@@ -312,7 +314,7 @@ export function InteractivePlayground() {
                 </Button>
 
                 {isSent && (
-                  <div className="animate-fade-in-up flex items-center justify-center gap-2 rounded-xl border border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 p-3.5 text-center text-xs font-medium text-[var(--toy-leaf)] sm:text-sm">
+                  <div className="animate-fade-in-up flex items-center justify-center gap-2 rounded-lg border border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 p-3.5 text-center text-xs font-medium text-[var(--toy-leaf)] sm:text-sm">
                     <CheckBuddy className="size-5 shrink-0" />
                     <span>
                       Woohoo! ₦
@@ -321,15 +323,18 @@ export function InteractivePlayground() {
                     </span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Live Feed Simulator Preview */}
-          <div className="lg:col-span-5 space-y-4">
+          <div className="space-y-4 lg:col-span-5">
             <div className="flex items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 font-toy text-base font-bold">
-                <span className="size-2 animate-pulse rounded-full bg-[var(--toy-leaf)]" />
+                <span
+                  aria-hidden="true"
+                  className="size-2 rounded-full bg-[var(--toy-leaf)]"
+                />
                 Kind words wall
               </h3>
               <span className="text-xs text-muted-foreground">Simulated feed</span>
@@ -339,12 +344,16 @@ export function InteractivePlayground() {
               {donations.map((d) => (
                 <div
                   key={d.id}
-                  className="rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-card/90 p-4 shadow-[0_3px_0_rgba(42,23,15,0.06)] backdrop-blur transition-all duration-300 hover:border-primary/30 hover:shadow-md"
+                  className="rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-card p-4 transition-colors hover:border-[var(--toy-ink)]/25"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="flex size-8 items-center justify-center rounded-full border-2 border-[var(--toy-ochre)]/50 bg-[var(--toy-ochre)]/30 text-xs font-bold text-foreground">
-                        {d.isPrivate ? "🔒" : d.name.slice(0, 1).toUpperCase()}
+                        {d.isPrivate ? (
+                          <Lock className="size-3.5" aria-hidden="true" />
+                        ) : (
+                          d.name.slice(0, 1).toUpperCase()
+                        )}
                       </div>
                       <span className="text-sm font-semibold">
                         {d.isPrivate ? "Private supporter" : d.name}
@@ -352,7 +361,7 @@ export function InteractivePlayground() {
                     </div>
                     <Badge
                       variant="secondary"
-                      className="h-auto gap-1 border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 px-2 py-1 text-[10px] font-semibold text-foreground"
+                      className="h-auto gap-1 border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25 px-2 py-1 text-[11px] font-semibold text-foreground"
                     >
                       <BreadBuddy className="size-3.5" />
                       {d.breads} {d.breads === 1 ? "bread" : "breads"} · ₦
@@ -365,7 +374,7 @@ export function InteractivePlayground() {
                       ? "“Support kept private between creator and fan.”"
                       : `“${d.message}”`}
                   </p>
-                  <p className="mt-2 font-mono text-[10px] text-muted-foreground/70">
+                  <p className="mt-2 font-mono text-[11px] text-muted-foreground">
                     {d.timeAgo}
                   </p>
                 </div>
@@ -380,34 +389,42 @@ export function InteractivePlayground() {
         </div>
       ) : (
         /* CREATOR VIEW */
-        <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
+        <div className="mt-10 grid gap-8 lg:grid-cols-12 lg:items-center">
           {/* Creator Dashboard Mockup */}
           <div className="lg:col-span-7">
-            <Card className="toy-card overflow-hidden bg-card">
-              <CardHeader className="border-b border-[var(--toy-ink)]/10 bg-gradient-to-r from-[var(--toy-ochre)]/30 via-[var(--toy-ochre)]/10 to-transparent pb-5">
+            <div className="toy-card overflow-hidden rounded-3xl bg-card">
+              <div className="border-b border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/40">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
                       <BreadBuddy size={24} />
                     </div>
                     <div className="min-w-0">
-                      <CardTitle className="font-toy text-base sm:text-lg">Amara&apos;s Creator Dashboard</CardTitle>
-                      <CardDescription className="text-xs">Live overview &amp; balances</CardDescription>
+                      <h3 className="font-toy text-base font-bold sm:text-lg">
+                        Amara&apos;s Creator Dashboard
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Live overview &amp; balances
+                      </p>
                     </div>
                   </div>
                   <Badge
                     variant="outline"
-                    className="h-auto border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 text-xs text-[var(--toy-leaf)]"
+                    className="h-auto gap-1.5 border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 text-[11px] text-[var(--toy-leaf)]"
                   >
-                    ● Active &amp; receiving
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 rounded-full bg-[var(--toy-leaf)]"
+                    />
+                    Active &amp; receiving
                   </Badge>
                 </div>
-              </CardHeader>
+              </div>
 
-              <CardContent className="p-5 sm:p-6 space-y-6">
+              <div className="space-y-6 p-5 sm:p-6">
                 {/* Stats cards */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5">
+                  <div className="rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5">
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       <CoinBuddy className="size-4" />
                       Available balance
@@ -417,7 +434,7 @@ export function InteractivePlayground() {
                     </p>
                   </div>
 
-                  <div className="rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5">
+                  <div className="rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5">
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       <HeartBuddy className="size-4" />
                       Supporters
@@ -427,7 +444,7 @@ export function InteractivePlayground() {
                     </p>
                   </div>
 
-                  <div className="col-span-2 rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5 sm:col-span-1">
+                  <div className="col-span-2 rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-3.5 sm:col-span-1">
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       <SparkBuddy className="size-4" />
                       This month
@@ -439,7 +456,7 @@ export function InteractivePlayground() {
                 </div>
 
                 {/* Instant Withdrawal Box */}
-                <div className="space-y-3 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-4 sm:p-5">
+                <div className="space-y-3 rounded-2xl border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15 p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h4 className="flex items-center gap-1.5 text-sm font-semibold">
@@ -456,7 +473,7 @@ export function InteractivePlayground() {
                   <Button
                     onClick={handleWithdraw}
                     disabled={isWithdrawing}
-                    className="h-11 w-full text-sm font-semibold shadow-md shadow-primary/20"
+                    className="h-11 w-full text-sm font-semibold"
                   >
                     {isWithdrawing ? (
                       <span className="flex items-center gap-2">
@@ -472,7 +489,7 @@ export function InteractivePlayground() {
                   </Button>
 
                   {withdrawSuccess && (
-                    <div className="animate-fade-in-up flex items-center justify-center gap-2 rounded-xl border border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 p-3 text-center text-xs font-medium text-[var(--toy-leaf)]">
+                    <div className="animate-fade-in-up flex items-center justify-center gap-2 rounded-lg border border-[var(--toy-leaf)]/30 bg-[var(--toy-leaf)]/10 p-3 text-center text-xs font-medium text-[var(--toy-leaf)]">
                       <CheckBuddy className="size-5 shrink-0" />
                       <span>Payout dispatched! ₦{totalRaised.toLocaleString()} sent directly to your GTBank account.</span>
                     </div>
@@ -489,20 +506,20 @@ export function InteractivePlayground() {
                     Automated reconciliation &amp; transparent ledger
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Educational Highlights for Creators */}
-          <div className="lg:col-span-5 space-y-5">
-            <h3 className="font-toy text-2xl font-bold tracking-tight">
+          <div className="space-y-5 lg:col-span-5">
+            <h3 className="font-toy text-xl font-bold tracking-tight sm:text-2xl">
               Why creators love{" "}
               <span className="text-primary">anything4boys</span>
             </h3>
 
             <div className="space-y-4">
               <div className="flex items-start gap-3.5">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/30">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
                   <SparkBuddy className="size-5" />
                 </div>
                 <div>
@@ -514,7 +531,7 @@ export function InteractivePlayground() {
               </div>
 
               <div className="flex items-start gap-3.5">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/30">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
                   <CoinBuddy className="size-5" />
                 </div>
                 <div>
@@ -526,7 +543,7 @@ export function InteractivePlayground() {
               </div>
 
               <div className="flex items-start gap-3.5">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/30">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/25">
                   <MessageBuddy className="size-5" />
                 </div>
                 <div>

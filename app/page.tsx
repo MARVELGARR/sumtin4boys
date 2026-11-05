@@ -75,81 +75,66 @@ const perks = [
   },
 ];
 
+const TRUST_POINTS = [
+  "Naira ready",
+  "No app for fans",
+  "No monthly fee",
+  "Bank payouts",
+];
+
 export default function HomePage() {
   return (
     <div className="relative overflow-x-clip bg-background text-foreground">
       <JsonLd data={faqJsonLd(HOME_FAQS)} />
-      {/* Background ambient glow + abstract wax-print texture */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <AnkaraPattern id="landing-hero" opacity={0.08} />
-        <div className="animate-float absolute -top-40 left-1/2 h-[500px] w-[350px] -translate-x-1/2 rounded-full bg-[var(--toy-lime)]/35 blur-3xl sm:w-[700px]" />
-        <div className="animate-float-delayed absolute top-1/3 -right-20 h-[400px] w-[300px] rounded-full bg-[var(--toy-leaf)]/10 blur-3xl sm:w-[500px]" />
-        <div className="animate-float absolute bottom-20 -left-20 h-[350px] w-[300px] rounded-full bg-[var(--toy-bread)]/20 blur-3xl sm:w-[450px]" />
-      </div>
 
       {/* ── 1. Hero ───────────────────────────────────────────── */}
-      <section className="relative mx-auto w-full max-w-6xl px-4 pt-10 pb-14 sm:pt-16 sm:pb-20 lg:pt-24 lg:pb-24">
+      <section className="relative mx-auto w-full max-w-6xl px-4 pt-10 pb-14 sm:pt-16 sm:pb-20">
         <div className="grid gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:gap-8">
-          <div className="flex flex-col items-center gap-5 text-center sm:gap-6 lg:items-start lg:text-left">
+          <div className="animate-fade-in-up flex flex-col items-center gap-5 text-center sm:gap-6 lg:items-start lg:text-left">
             <Badge
               variant="secondary"
-              className="animate-fade-in-up h-auto max-w-full gap-1.5 whitespace-normal border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/35 px-3.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-foreground shadow-sm sm:text-sm"
+              className="h-auto max-w-full gap-1.5 whitespace-normal border-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/35 px-3.5 py-1.5 text-center text-xs font-semibold leading-snug text-foreground sm:text-sm"
             >
               <DanfoBuddy className="size-4 shrink-0" />
               <span>Naija-made · for the boys (and everybody else)</span>
             </Badge>
 
-            <h1 className="font-toy animate-fade-in-up max-w-2xl text-4xl leading-[1.05] font-bold tracking-tight text-balance animate-delay-100 sm:text-6xl lg:max-w-3xl">
+            <h1 className="font-toy max-w-2xl text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl lg:max-w-3xl lg:text-6xl">
               Tear <span className="text-primary">small bread</span>.
               <span className="block">Make somebody&apos;s day.</span>
             </h1>
 
-            <p className="animate-fade-in-up max-w-xl px-2 text-base leading-relaxed text-balance text-muted-foreground animate-delay-200 sm:text-lg lg:px-0">
+            <p className="max-w-xl text-base leading-relaxed text-balance text-muted-foreground sm:text-lg">
               Support Nigerian creators, artists, writers, cooks, comedians and
               everyday people who make your day sweeter. One link, three taps,
               no app for fans — no wahala.
             </p>
 
-            <div className="animate-fade-in-up flex w-full animate-delay-300 justify-center px-2 lg:justify-start lg:px-0">
+            <div className="flex w-full justify-center lg:justify-start">
               <HeroClaimInput />
             </div>
 
-            <div className="animate-fade-in-up flex w-full animate-delay-300 flex-col items-stretch justify-center gap-3 pt-1 sm:w-auto sm:flex-row sm:items-center lg:justify-start">
+            <div className="flex w-full flex-wrap items-center justify-center gap-4 sm:w-auto sm:flex-row sm:items-center lg:justify-start">
               <Button
                 asChild
-                size="lg"
-                className="h-12 px-8 text-base font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30"
-              >
-                <Link href="/signin?flow=signUp">
-                  <span>Start my free page</span>
-                  <ArrowRight className="ml-1.5 size-4" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
                 variant="outline"
-                className="h-12 border-2 border-[var(--toy-ink)]/15 bg-background/70 px-8 text-base hover:bg-muted/60"
+                size="lg"
+                className="h-11 px-6 text-sm font-semibold"
               >
-                <a href="#demo">See supporter flow ↓</a>
+                <a href="#how-it-works">See how it works</a>
               </Button>
+
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:justify-start">
+                {TRUST_POINTS.map((point) => (
+                  <span key={point} className="inline-flex items-center gap-1.5">
+                    <CheckBuddy className="size-4" />
+                    <span>{point}</span>
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="animate-fade-in-up flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-2 text-xs text-muted-foreground animate-delay-300 sm:text-sm lg:justify-start">
-              {[
-                "Naira ready",
-                "No app for fans",
-                "No monthly fee",
-                "Bank payouts",
-              ].map((point) => (
-                <span key={point} className="inline-flex items-center gap-1.5">
-                  <CheckBuddy className="size-4" />
-                  <span>{point}</span>
-                </span>
-              ))}
-            </div>
-
-            <p className="text-xs text-muted-foreground/80">
+            <p className="text-xs text-muted-foreground">
               No be by force. Just small bread, if you can.
             </p>
           </div>
@@ -157,15 +142,11 @@ export default function HomePage() {
           {/* Bread-first hero visual */}
           <div className="relative mx-auto w-full max-w-md lg:max-w-none">
             <div className="relative">
-              <div
-                aria-hidden="true"
-                className="absolute inset-8 rounded-full bg-[var(--toy-lime)]/25 blur-2xl"
-              />
-              <BreadHeroArt className="relative w-full drop-shadow-sm" />
+              <BreadHeroArt className="w-full drop-shadow-sm" />
 
               <ToySticker
                 tone="ochre"
-                className="absolute -left-2 top-7 -rotate-6 px-3 py-2 shadow-md sm:-left-4"
+                className="absolute -left-2 top-7 -rotate-6 px-3 py-2 sm:-left-4"
               >
                 <BreadBuddy size={26} />
                 <span className="font-toy text-xs font-semibold sm:text-sm">
@@ -175,7 +156,7 @@ export default function HomePage() {
 
               <ToySticker
                 tone="cream"
-                className="absolute -right-1 bottom-20 rotate-3 px-3 py-2 shadow-md sm:-right-3"
+                className="absolute -right-1 bottom-20 rotate-3 px-3 py-2 sm:-right-3"
               >
                 <MessageBuddy size={26} />
                 <span className="font-toy text-xs font-semibold sm:text-sm">
@@ -185,7 +166,7 @@ export default function HomePage() {
 
               <ToySticker
                 tone="ochre"
-                className="absolute bottom-2 left-4 -rotate-2 px-3 py-2 shadow-md"
+                className="absolute bottom-2 left-4 -rotate-2 px-3 py-2"
               >
                 <SunBuddy size={24} />
                 <span className="font-toy text-xs font-semibold sm:text-sm">
@@ -215,42 +196,37 @@ export default function HomePage() {
       <UseCasesShowcase />
 
       {/* ── 7. Platform highlights ────────────────────────────── */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
-        <div className="mb-12 flex flex-col items-center gap-3 text-center">
-          <Badge
-            variant="outline"
-            className="mb-1 h-auto gap-1.5 border-2 border-[var(--toy-ink)]/10 bg-background/70 px-3 py-1 text-xs font-semibold"
-          >
-            <SparkBuddy className="size-4" />
+      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:py-20">
+        <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-center">
+          <p className="font-toy text-xs font-semibold tracking-[0.18em] text-primary uppercase">
             Platform highlights
-          </Badge>
-          <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl lg:text-5xl">
+          </p>
+          <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl">
             Everything you need, nothing you don&apos;t
           </h2>
-          <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
+          <p className="text-sm text-muted-foreground sm:text-base">
             Built so you can spend your energy creating — not chasing payments,
             posting ads, or doing account gymnastics.
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {perks.map((perk, i) => (
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {perks.map((perk) => (
             <div
               key={perk.title}
-              className="group flex items-start gap-4 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-card/90 p-5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card hover:shadow-md sm:p-6"
-              style={{ animationDelay: `${i * 80}ms` }}
+              className="flex items-start gap-4 rounded-2xl border-2 border-[var(--toy-ink)]/10 bg-card p-5 transition-colors hover:border-[var(--toy-ink)]/25"
             >
               <ToySticker
-                tone={i % 2 === 0 ? "ochre" : "cream"}
+                tone="ochre"
                 className="size-11 shrink-0 p-0"
               >
                 <perk.icon className="size-6" />
               </ToySticker>
               <div className="flex flex-col gap-1.5">
-                <h3 className="font-toy text-base font-semibold text-foreground">
+                <h3 className="font-toy text-base font-bold text-foreground">
                   {perk.title}
                 </h3>
-                <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                <p className="text-sm leading-relaxed text-muted-foreground">
                   {perk.description}
                 </p>
               </div>
@@ -260,9 +236,8 @@ export default function HomePage() {
       </section>
 
       {/* ── 8. Social proof & numbers ─────────────────────────── */}
-      <section className="relative overflow-hidden border-y-2 border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/20">
-        <AnkaraPattern id="landing-stats" opacity={0.08} />
-        <div className="relative mx-auto w-full max-w-5xl px-4 py-14 sm:py-18">
+      <section className="border-t border-[var(--toy-ink)]/10 bg-[var(--toy-ochre)]/15">
+        <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:py-20">
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
             {[
               { value: "₦0", label: "Monthly subscription fee" },
@@ -274,7 +249,7 @@ export default function HomePage() {
                 key={stat.label}
                 className="flex flex-col items-center gap-1.5 text-center"
               >
-                <span className="font-toy text-3xl font-bold tracking-tight text-primary sm:text-5xl">
+                <span className="font-toy text-4xl font-bold tracking-tight text-primary sm:text-5xl">
                   {stat.value}
                 </span>
                 <span className="text-xs leading-tight text-muted-foreground sm:text-sm">
@@ -290,22 +265,18 @@ export default function HomePage() {
       <FaqSection />
 
       {/* ── 10. Final CTA ─────────────────────────────────────── */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-24">
-        <div className="toy-card relative overflow-hidden rounded-[2rem] bg-[var(--toy-ochre)]/25 px-6 py-14 text-center shadow-xl shadow-primary/5 sm:px-12 sm:py-20">
-          <AnkaraPattern id="landing-cta" opacity={0.16} />
-          <div className="pointer-events-none absolute inset-0">
-            <div className="animate-float absolute -left-20 -top-20 h-44 w-44 rounded-full bg-[var(--toy-lime)]/40 blur-2xl" />
-            <div className="animate-float-delayed absolute -bottom-20 -right-20 h-44 w-44 rounded-full bg-[var(--toy-bread)]/20 blur-2xl" />
-          </div>
+      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:py-20">
+        <div className="toy-card relative overflow-hidden rounded-3xl bg-card px-6 py-12 text-center sm:px-12 sm:py-16">
+          <AnkaraPattern id="landing-cta" opacity={0.12} />
 
-          <div className="relative flex flex-col items-center gap-5 sm:gap-6">
+          <div className="relative mx-auto flex max-w-xl flex-col items-center gap-5">
             <ToySticker tone="cream" className="size-16 rotate-3 p-0">
               <BreadBuddy size={48} />
             </ToySticker>
-            <h2 className="max-w-xl font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl md:text-5xl">
+            <h2 className="font-toy text-3xl font-bold tracking-tight text-balance sm:text-4xl">
               Your first bread is one link away
             </h2>
-            <p className="max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
+            <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
               Claim your permanent username, drop it in your bio or stories, and
               give your people the easiest way to back your work.{" "}
               <span className="font-medium text-foreground">
@@ -313,23 +284,21 @@ export default function HomePage() {
               </span>{" "}
               is built for the small small support that adds up.
             </p>
-            <div className="flex w-full flex-col items-stretch justify-center gap-3 pt-2 sm:w-auto sm:flex-row sm:items-center">
-              <Button
-                asChild
-                size="lg"
-                className="h-12 px-8 text-base font-semibold shadow-lg shadow-primary/25 transition-all hover:shadow-xl hover:shadow-primary/30"
-              >
-                <Link href="/signin?flow=signUp">
-                  <span>Start my page — it&apos;s free</span>
-                  <ArrowRight className="ml-1.5 size-4" />
-                </Link>
-              </Button>
-            </div>
-            <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+            <Button
+              asChild
+              size="lg"
+              className="h-11 px-6 text-sm font-semibold"
+            >
+              <Link href="/signin?flow=signUp">
+                <span>Start my page — it&apos;s free</span>
+                <ArrowRight className="ml-1.5 size-4" />
+              </Link>
+            </Button>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="size-4 text-primary" />
               <span>No credit card required · Live in 60 seconds</span>
             </div>
-            <p className="max-w-md text-xs text-muted-foreground/80">
+            <p className="text-xs text-muted-foreground">
               {APP_TAGLINE}. No pressure, no wahala.
             </p>
           </div>

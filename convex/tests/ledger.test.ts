@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { platformFeeFor } from "../lib/pricing";
 import {
   eventId,
   getBalances,
@@ -104,7 +105,9 @@ describe("ledger settlement", () => {
     });
     expect(result.outcome).toBe("processed");
 
-    const secondNet = 20_000 - Math.round((20_000 * 500) / 10_000);
+    // The ₦200 bread is below the ₦400 break-even, so the ₦20 minimum fee
+    // binds: production `startCheckout` stores 2_000, not 1_000.
+    const secondNet = 20_000 - platformFeeFor(20_000, "NGN");
     const balances = await getBalances(t, creatorId);
     expect(balances.pending).toBe(secondNet);
     expect(balances.available).toBe(netAmount);

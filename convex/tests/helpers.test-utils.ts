@@ -7,6 +7,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import type { Doc, Id } from "../_generated/dataModel";
 import { fromMinorUnits } from "../lib/money";
+import { platformFeeFor } from "../lib/pricing";
 import { MAX_QUANTITY } from "../lib/validation";
 
 /**
@@ -134,13 +135,22 @@ export interface SeedDonationInput {
 /**
  * Insert a donation row exactly like `donations.startCheckout` would, so the
  * event pipeline can be driven without touching the provider.
+ *
+ * The fee comes from `platformFeeFor(amount, currency)` — the same per-currency
+ * policy production uses (NGN 5%/₦20 min, USD 10%/$1 min). When `currency` is
+ * omitted it is read from the creator, exactly like `startCheckout`.
  */
 export async function seedDonation(t: Test, input: SeedDonationInput) {
   const amount = input.amount ?? 50_000;
   const quantity = input.quantity ?? 1;
-  const currency = input.currency ?? "NGN";
+  const currency =
+    input.currency ??
+    (await t.run(async (ctx) => {
+      const creator = await ctx.db.get("creators", input.creatorId);
+      return creator?.currency ?? "NGN";
+    }));
   const reference = input.reference ?? `a4b_test${Math.random().toString(16).slice(2)}`;
-  const platformFee = Math.round((amount * 500) / 10_000);
+  const platformFee = platformFeeFor(amount, currency);
   const donationId = await t.run(async (ctx) =>
     ctx.db.insert("donations", {
       creatorId: input.creatorId,
